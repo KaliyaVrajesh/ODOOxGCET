@@ -30,10 +30,8 @@ export interface User {
 
 export interface AuthResponse {
   user: User;
-  tokens: {
-    access: string;
-    refresh: string;
-  };
+  access: string;
+  refresh: string;
 }
 
 export const authApi = {
@@ -44,7 +42,7 @@ export const authApi = {
     const response = await apiClient.post<AuthResponse>('/auth/admin/signup/', data);
     
     // Store tokens
-    tokenManager.setTokens(response.data.tokens.access, response.data.tokens.refresh);
+    tokenManager.setTokens(response.data.access, response.data.refresh);
     
     return response.data;
   },
@@ -56,7 +54,7 @@ export const authApi = {
     const response = await apiClient.post<AuthResponse>('/auth/signin/', data);
     
     // Store tokens
-    tokenManager.setTokens(response.data.tokens.access, response.data.tokens.refresh);
+    tokenManager.setTokens(response.data.access, response.data.refresh);
     
     return response.data;
   },
