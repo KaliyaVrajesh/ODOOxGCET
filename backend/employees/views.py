@@ -17,10 +17,8 @@ class EmployeeListView(generics.ListAPIView):
     def get_queryset(self):
         queryset = EmployeeProfile.objects.select_related('user').all()
         
-        # Only admins can see all employees
-        if self.request.user.role != 'ADMIN':
-            # Regular employees see only themselves
-            queryset = queryset.filter(user=self.request.user)
+        # Everyone can see all employees (for status visibility)
+        # Role-based permissions are handled at the action level
         
         # Search filter
         search = self.request.query_params.get('search', None)
@@ -48,7 +46,7 @@ class EmployeeDetailView(generics.RetrieveAPIView):
         queryset = EmployeeProfile.objects.select_related('user').all()
         
         # Regular employees can only view their own profile
-        if self.request.user.role != 'ADMIN':
+        if self.request.user.role not in ['ADMIN', 'HR']:
             queryset = queryset.filter(user=self.request.user)
         
         return queryset

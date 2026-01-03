@@ -65,9 +65,16 @@ class CheckInSerializer(serializers.Serializer):
     """Check-in request"""
     def validate(self, data):
         user = self.context['request'].user
+        today = timezone.now().date()
         
-        # Check if already checked in today
-        if AttendanceRecord.has_open_record(user):
+        # Check if already checked in today (with open record)
+        open_record = AttendanceRecord.objects.filter(
+            user=user,
+            check_in_time__date=today,
+            check_out_time__isnull=True
+        ).first()
+        
+        if open_record:
             raise serializers.ValidationError({
                 'error': 'ALREADY_CHECKED_IN',
                 'message': 'You have already checked in today'

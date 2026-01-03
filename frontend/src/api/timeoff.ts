@@ -5,21 +5,29 @@
 import apiClient from './client';
 
 export interface TimeOffBalance {
+  id: string; // Balance ID
+  type_id: string; // UUID of the time off type
+  type_code: string;
   type_name: string;
-  days_available: number;
+  year: number;
+  allocated_days: number;
+  used_days: number;
+  available_days: number;
 }
 
 export interface TimeOffRequest {
   id: string;
+  employee_id?: string;
   employee_name?: string; // For admin view
-  type_name: string;
+  timeoff_type_name: string;
+  timeoff_type_code: string;
   start_date: string;
   end_date: string;
-  days_requested: number;
+  allocation_days: number;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  reason: string;
   rejection_reason?: string;
   created_at: string;
+  updated_at: string;
 }
 
 export interface MyTimeOffResponse {
@@ -31,15 +39,14 @@ export interface CreateTimeOffData {
   timeoff_type: string; // UUID
   start_date: string; // YYYY-MM-DD
   end_date: string; // YYYY-MM-DD
-  reason: string;
   attachment?: File | null;
 }
 
 export interface AdminTimeOffListResponse {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: TimeOffRequest[];
+  count?: number;
+  next?: string | null;
+  previous?: string | null;
+  results?: TimeOffRequest[];
 }
 
 export const timeoffApi = {
@@ -54,17 +61,16 @@ export const timeoffApi = {
   /**
    * Employee - Create time off request
    */
-  createRequest: async (data: CreateTimeOffData): Promise<TimeOffRequest> => {
+  createRequest: async (data: CreateTimeOffData): Promise<{ request: TimeOffRequest; balances: TimeOffBalance[]; message: string }> => {
     const formData = new FormData();
     formData.append('timeoff_type', data.timeoff_type);
     formData.append('start_date', data.start_date);
     formData.append('end_date', data.end_date);
-    formData.append('reason', data.reason);
     if (data.attachment) {
       formData.append('attachment', data.attachment);
     }
 
-    const response = await apiClient.post<TimeOffRequest>('/timeoff/me/', formData, {
+    const response = await apiClient.post<{ request: TimeOffRequest; balances: TimeOffBalance[]; message: string }>('/timeoff/me/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -79,8 +85,8 @@ export const timeoffApi = {
     status?: 'PENDING' | 'APPROVED' | 'REJECTED';
     search?: string;
     page?: number;
-  }): Promise<AdminTimeOffListResponse> => {
-    const response = await apiClient.get<AdminTimeOffListResponse>('/timeoff/admin/', { params });
+  }): Promise<TimeOffRequest[]> => {
+    const response = await apiClient.get<TimeOffRequest[]>('/timeoff/admin/', { params });
     return response.data;
   },
 

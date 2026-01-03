@@ -36,12 +36,10 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
 
   // Load employees on mount
   useEffect(() => {
-    if (userRole === 'admin') {
-      loadEmployees();
-    }
+    loadEmployees(); // Load for all users, not just admin
   }, [userRole]);
 
-  // Load current attendance status on mount
+  // Load current attendance status on mount and when component becomes visible
   useEffect(() => {
     loadCurrentStatus();
   }, []);
@@ -49,10 +47,11 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
   const loadEmployees = async () => {
     try {
       setLoading(true);
-      const response = await employeesApi.list({ search: searchQuery });
+      setError(''); // Clear any previous errors
+      const employeesList = await employeesApi.list({ search: searchQuery });
       
       // Map API response to component format
-      const mappedEmployees = response.results.map(emp => ({
+      const mappedEmployees = employeesList.map(emp => ({
         id: emp.id,
         name: emp.full_name,
         status: emp.status_icon.toLowerCase().replace('_', '-') as EmployeeStatus,
@@ -84,10 +83,8 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
       setIsCheckedIn(true);
       setCheckInTime(response.since_time);
       
-      // Reload employees to update status dots
-      if (userRole === 'admin') {
-        loadEmployees();
-      }
+      // Reload employees to update status dots for all users
+      loadEmployees();
     } catch (err) {
       alert(handleApiError(err));
     }
@@ -100,10 +97,8 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
       setCheckInTime('');
       alert(`Checked out successfully. Duration: ${response.duration}`);
       
-      // Reload employees to update status dots
-      if (userRole === 'admin') {
-        loadEmployees();
-      }
+      // Reload employees to update status dots for all users
+      loadEmployees();
     } catch (err) {
       alert(handleApiError(err));
     }
@@ -111,14 +106,12 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
 
   // Search employees when query changes
   useEffect(() => {
-    if (userRole === 'admin') {
-      const timer = setTimeout(() => {
-        loadEmployees();
-      }, 300); // Debounce search
-      
-      return () => clearTimeout(timer);
-    }
-  }, [searchQuery, userRole]);
+    const timer = setTimeout(() => {
+      loadEmployees();
+    }, 300); // Debounce search
+    
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleEmployeeClick = (employeeId: string) => {
     console.log('Open employee profile:', employeeId);

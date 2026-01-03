@@ -30,7 +30,7 @@ export default function App() {
         id: user.id,
         name: user.full_name,
         email: user.email,
-        role: user.role.toLowerCase() as UserRole,
+        role: (user.role === 'ADMIN' || user.role === 'HR') ? 'admin' : 'employee',
       });
       setCurrentPage('dashboard');
     }
@@ -55,7 +55,7 @@ export default function App() {
         id: response.user.id,
         name: response.user.full_name,
         email: response.user.email,
-        role: response.user.role.toLowerCase() as UserRole,
+        role: (response.user.role === 'ADMIN' || response.user.role === 'HR') ? 'admin' : 'employee',
       });
       setCurrentPage('dashboard');
     } catch (err) {
@@ -98,7 +98,7 @@ export default function App() {
         id: response.user.id,
         name: response.user.full_name,
         email: response.user.email,
-        role: response.user.role.toLowerCase() as UserRole,
+        role: (response.user.role === 'ADMIN' || response.user.role === 'HR') ? 'admin' : 'employee',
       });
       setCurrentPage('dashboard');
     } catch (err) {

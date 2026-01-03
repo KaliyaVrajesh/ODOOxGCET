@@ -18,7 +18,7 @@ class EmployeeCardSerializer(serializers.ModelSerializer):
     def get_status_icon(self, obj):
         """
         Determine status based on today's attendance record
-        Returns: PRESENT, ON_LEAVE, or ABSENT
+        Returns: PRESENT (checked in), ON_LEAVE, or ABSENT
         """
         today = timezone.now().date()
         record = AttendanceRecord.objects.filter(
@@ -29,7 +29,11 @@ class EmployeeCardSerializer(serializers.ModelSerializer):
         if record:
             if record.is_on_leave:
                 return 'ON_LEAVE'
-            return record.status
+            # If checked in but not checked out yet, show PRESENT
+            if record.check_out_time is None:
+                return 'PRESENT'
+            # If already checked out, show ABSENT (not currently in office)
+            return 'ABSENT'
         
         # No record for today means absent
         return 'ABSENT'
@@ -64,7 +68,11 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
         if record:
             if record.is_on_leave:
                 return 'ON_LEAVE'
-            return record.status
+            # If checked in but not checked out yet, show PRESENT
+            if record.check_out_time is None:
+                return 'PRESENT'
+            # If already checked out, show ABSENT (not currently in office)
+            return 'ABSENT'
         
         return 'ABSENT'
 

@@ -8,19 +8,28 @@ type UserRole = 'employee' | 'admin';
 
 interface TimeOffRequest {
   id: string;
+  employee_id?: string;
   employee_name?: string;
-  type_name: string;
+  timeoff_type_name: string;
+  timeoff_type_code: string;
   start_date: string;
   end_date: string;
-  days_requested: number;
+  allocation_days: number;
   status: TimeOffStatus;
-  reason: string;
   rejection_reason?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface TimeOffBalance {
+  id: string;
+  type_id: string;
+  type_code: string;
   type_name: string;
-  days_available: number;
+  year: number;
+  allocated_days: number;
+  used_days: number;
+  available_days: number;
 }
 
 interface TimeOffProps {
@@ -56,14 +65,18 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
       setError('');
       
       if (isAdmin) {
-        // Load all requests for admin
-        const response = await timeoffApi.getAdminTimeOffList({ status: undefined });
-        setRequests(response.results);
+        // Load all requests for admin view
+        const requestsData = await timeoffApi.getAdminTimeOffList({ status: undefined });
+        setRequests(requestsData);
+        
+        // Also load admin's own balances so they can create requests
+        const myData = await timeoffApi.getMyTimeOff();
+        setBalances(myData.balances || []);
       } else {
         // Load my requests and balances for employee
         const response = await timeoffApi.getMyTimeOff();
-        setRequests(response.requests);
-        setBalances(response.balances);
+        setRequests(response.requests || []);
+        setBalances(response.balances || []);
       }
     } catch (err) {
       setError(handleApiError(err));
@@ -79,7 +92,7 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
       
       // Update the request in state
       setRequests(requests.map(req => 
-        req.id === id ? response.request : req
+        req.id === id ? { ...req, status: 'APPROVED' as TimeOffStatus } : req
       ));
       
       alert('Request approved successfully');
@@ -97,7 +110,7 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
       
       // Update the request in state
       setRequests(requests.map(req => 
-        req.id === id ? response.request : req
+        req.id === id ? { ...req, status: 'REJECTED' as TimeOffStatus, rejection_reason: reason } : req
       ));
       
       alert('Request rejected');
@@ -114,21 +127,20 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
     const timeoffType = (form.elements.namedItem('timeoffType') as HTMLSelectElement).value;
     const startDate = (form.elements.namedItem('startDate') as HTMLInputElement).value;
     const endDate = (form.elements.namedItem('endDate') as HTMLInputElement).value;
-    const reason = (form.elements.namedItem('reason') as HTMLTextAreaElement).value;
     
     try {
-      await timeoffApi.createRequest({
+      const response = await timeoffApi.createRequest({
         timeoff_type: timeoffType,
         start_date: startDate,
         end_date: endDate,
-        reason: reason,
       });
       
       setShowNewRequestModal(false);
       alert('Request submitted successfully');
       
-      // Reload data
-      loadData();
+      // Update state with new data
+      setRequests([response.request, ...requests]);
+      setBalances(response.balances);
     } catch (err) {
       alert(handleApiError(err));
     } finally {
@@ -154,7 +166,7 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
     if (!searchQuery) return true;
     const searchLower = searchQuery.toLowerCase();
     return (
-      req.type_name.toLowerCase().includes(searchLower) ||
+      req.timeoff_type_name.toLowerCase().includes(searchLower) ||
       (req.employee_name && req.employee_name.toLowerCase().includes(searchLower))
     );
   });
@@ -288,10 +300,10 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
         {/* Allocation Summary Strip */}
         {!isAdmin && balances.length > 0 && (
           <div className="flex items-center justify-center gap-8 mb-8">
-            {balances.map((balance, index) => (
-              <div key={index} className="bg-white border border-gray-200 rounded-xl px-8 py-6 text-center min-w-[200px]">
+            {balances.map((balance) => (
+              <div key={balance.id} className="bg-white border border-gray-200 rounded-xl px-8 py-6 text-center min-w-[200px]">
                 <h3 className="text-blue-600 mb-2">{balance.type_name}</h3>
-                <p className="text-gray-600 text-sm">{balance.days_available} Days Available</p>
+                <p className="text-gray-600 text-sm">{balance.available_days} Days Available</p>
               </div>
             ))}
           </div>
@@ -342,8 +354,8 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
                         {isAdmin && <td className="px-6 py-4 text-sm text-gray-800">{request.employee_name}</td>}
                         <td className="px-6 py-4 text-sm text-gray-600">{request.start_date}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{request.end_date}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{request.type_name}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{request.days_requested}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{request.timeoff_type_name}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{request.allocation_days}</td>
                         <td className="px-6 py-4">
                           {isAdmin ? (
                             <div className="flex items-center gap-2">
@@ -419,9 +431,9 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm"
                 >
                   <option value="">Select type...</option>
-                  {balances.map((balance, index) => (
-                    <option key={index} value={balance.type_name}>
-                      {balance.type_name} ({balance.days_available} days available)
+                  {balances.map((balance) => (
+                    <option key={balance.type_id} value={balance.type_id}>
+                      {balance.type_name} ({balance.available_days} days available)
                     </option>
                   ))}
                 </select>
@@ -450,18 +462,6 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
                     />
                   </div>
                 </div>
-              </div>
-
-              {/* Reason */}
-              <div>
-                <label className="block mb-2 text-gray-700 text-sm">Reason</label>
-                <textarea
-                  name="reason"
-                  required
-                  rows={3}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm"
-                  placeholder="Enter reason for time off..."
-                />
               </div>
 
               {/* Action Buttons */}
