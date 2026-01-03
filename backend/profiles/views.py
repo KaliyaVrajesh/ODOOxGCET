@@ -1,118 +1,137 @@
 from rest_framework import status, generics
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from django.shortcuts import get_object_or_404
-from profiles.models import ProfileDetail, Skill, Certification
+from django.db import transaction
+
+from profiles.models import Skill, Certification, SalaryStructure
 from profiles.serializers import (
-    MyProfileSerializer,
-    SkillSerializer,
-    CertificationSerializer
+    FullProfileSerializer, SkillSerializer, CertificationSerializer,
+    SalaryStructureSerializer
 )
 
-class MyProfileView(APIView):
+
+class MyFullProfileView(APIView):
     """
-    GET /api/profile/me/
-    Retrieve the authenticated user's complete profile
-    
-    PUT/PATCH /api/profile/me/
-    Update the authenticated user's profile (header + private info fields)
+    GET/PUT/PATCH /api/profile/me/full/
+    Complete profile with all tabs
     """
     permission_classes = [IsAuthenticated]
-
+    
     def get(self, request):
-        user = request.user
-        serializer = MyProfileSerializer(user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
+        serializer = FullProfileSerializer(request.user, context={'request': request})
+        return Response(serializer.data)
+    
     def put(self, request):
-        return self._update_profile(request, partial=False)
-
+        serializer = FullProfileSerializer(
+            request.user, 
+            data=request.data, 
+            partial=False,
+            context={'request': request}
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
     def patch(self, request):
-        return self._update_profile(request, partial=True)
+        serializer = FullProfileSerializer(
+            request.user, 
+            data=request.data, 
+            partial=True,
+            context={'request': request}
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def _update_profile(self, request, partial=False):
-        user = request.user
-        serializer = MyProfileSerializer(user, data=request.data, partial=partial)
+
+class SkillListCreateView(generics.ListCreateAPIView):
+    """
+    GET/POST /api/profile/me/skills/
+    """
+    serializer_class = SkillSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Skill.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class SkillDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET/PUT/PATCH/DELETE /api/profile/me/skills/<id>/
+    """
+    serializer_class = SkillSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Skill.objects.filter(user=self.request.user)
+
+
+class CertificationListCreateView(generics.ListCreateAPIView):
+    """
+    GET/POST /api/profile/me/certifications/
+    """
+    serializer_class = CertificationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Certification.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class CertificationDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET/PUT/PATCH/DELETE /api/profile/me/certifications/<id>/
+    """
+    serializer_class = CertificationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Certification.objects.filter(user=self.request.user)
+
+
+class MySalaryView(APIView):
+    """
+    GET/PUT /api/profile/me/salary/
+    Admin/HR only
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        if request.user.role not in ['ADMIN', 'HR']:
+            return Response(
+                {'error': 'Only Admin/HR can view salary information'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            salary = request.user.salary_structure
+            serializer = SalaryStructureSerializer(salary)
+            return Response(serializer.data)
+        except SalaryStructure.DoesNotExist:
+            return Response(
+                {'error': 'Salary structure not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    def put(self, request):
+        if request.user.role not in ['ADMIN', 'HR']:
+            return Response(
+                {'error': 'Only Admin/HR can update salary information'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        salary, created = SalaryStructure.objects.get_or_create(user=request.user)
+        serializer = SalaryStructureSerializer(salary, data=request.data, partial=True)
         
         if serializer.is_valid():
             serializer.save()
-            # Return updated profile
-            response_serializer = MyProfileSerializer(user)
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
-        
+            return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def add_skill(request):
-    """
-    POST /api/profile/me/skills/
-    Add a new skill to the authenticated user's profile
-    
-    Body: { "name": "Python", "level": "Expert" }
-    """
-    serializer = SkillSerializer(data=request.data)
-    
-    if serializer.is_valid():
-        # Check if skill already exists for this user
-        if Skill.objects.filter(user=request.user, name=serializer.validated_data['name']).exists():
-            return Response(
-                {'name': ['You already have this skill in your profile.']},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        serializer.save(user=request.user)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
-def delete_skill(request, skill_id):
-    """
-    DELETE /api/profile/me/skills/<uuid:skill_id>/
-    Remove a skill from the authenticated user's profile
-    """
-    skill = get_object_or_404(Skill, id=skill_id, user=request.user)
-    skill.delete()
-    return Response(
-        {'message': 'Skill deleted successfully'},
-        status=status.HTTP_200_OK
-    )
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def add_certification(request):
-    """
-    POST /api/profile/me/certifications/
-    Add a new certification to the authenticated user's profile
-    
-    Body: {
-        "title": "AWS Certified Solutions Architect",
-        "issuer": "Amazon Web Services",
-        "issued_date": "2023-06-15"
-    }
-    """
-    serializer = CertificationSerializer(data=request.data)
-    
-    if serializer.is_valid():
-        serializer.save(user=request.user)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
-def delete_certification(request, certification_id):
-    """
-    DELETE /api/profile/me/certifications/<uuid:certification_id>/
-    Remove a certification from the authenticated user's profile
-    """
-    certification = get_object_or_404(Certification, id=certification_id, user=request.user)
-    certification.delete()
-    return Response(
-        {'message': 'Certification deleted successfully'},
-        status=status.HTTP_200_OK
-    )

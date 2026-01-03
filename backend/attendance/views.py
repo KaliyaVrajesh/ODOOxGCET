@@ -1,141 +1,224 @@
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from django.utils import timezone
+from django.db.models import Q
+from datetime import datetime, timedelta
+from calendar import monthrange
+
 from attendance.models import AttendanceRecord
 from attendance.serializers import (
-    CheckInSerializer,
-    CheckOutSerializer,
-    CurrentStatusSerializer
+    AttendanceRecordSerializer, CheckInSerializer, CheckOutSerializer,
+    CurrentStatusSerializer, AdminDayAttendanceSerializer,
+    EmployeeMonthAttendanceSerializer
 )
+from accounts.models import User
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def check_in(request):
+
+class CheckInView(APIView):
     """
     POST /api/attendance/check-in/
-    Check in the authenticated user
+    Employee checks in
     """
-    user = request.user
+    permission_classes = [IsAuthenticated]
     
-    # Check if already checked in today
-    if AttendanceRecord.has_open_record(user):
-        return Response(
-            {
-                'error': 'ALREADY_CHECKED_IN',
-                'detail': 'You have already checked in today and have not checked out yet.'
-            },
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Create new attendance record
-    now = timezone.now()
-    record = AttendanceRecord.objects.create(
-        user=user,
-        check_in_time=now,
-        status='PRESENT'
-    )
-    
-    response_data = {
-        'since_time': record.check_in_time,
-        'current_status': 'PRESENT',
-        'message': 'Successfully checked in'
-    }
-    
-    serializer = CheckInSerializer(response_data)
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
+    def post(self, request):
+        serializer = CheckInSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            record = serializer.save()
+            return Response({
+                'message': 'Checked in successfully',
+                'since_time': record.check_in_time.strftime('%H:%M'),
+                'status': 'PRESENT'
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def check_out(request):
+
+class CheckOutView(APIView):
     """
     POST /api/attendance/check-out/
-    Check out the authenticated user
+    Employee checks out
     """
-    user = request.user
-    today = timezone.now().date()
+    permission_classes = [IsAuthenticated]
     
-    # Find today's open record
-    record = AttendanceRecord.objects.filter(
-        user=user,
-        check_in_time__date=today,
-        check_out_time__isnull=True
-    ).first()
-    
-    if not record:
-        return Response(
-            {
-                'error': 'NOT_CHECKED_IN',
-                'detail': 'You have not checked in today or have already checked out.'
-            },
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Set check out time
-    now = timezone.now()
-    record.check_out_time = now
-    record.save()
-    
-    response_data = {
-        'check_in_time': record.check_in_time,
-        'check_out_time': record.check_out_time,
-        'duration': record.duration_formatted,
-        'message': 'Successfully checked out'
-    }
-    
-    serializer = CheckOutSerializer(response_data)
-    return Response(serializer.data, status=status.HTTP_200_OK)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def current_status(request):
-    """
-    GET /api/attendance/current/
-    Get current attendance status for authenticated user
-    """
-    user = request.user
-    today = timezone.now().date()
-    
-    # Get today's record
-    record = AttendanceRecord.objects.filter(
-        user=user,
-        check_in_time__date=today
-    ).first()
-    
-    if record:
-        is_checked_in = record.check_out_time is None
-        
-        # Determine status icon
-        if record.is_on_leave:
-            status_icon = 'ON_LEAVE'
-        else:
-            status_icon = record.status
-        
-        # Calculate duration so far if still checked in
-        duration_so_far = None
-        if is_checked_in:
-            delta = timezone.now() - record.check_in_time
+    def post(self, request):
+        serializer = CheckOutSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            record = serializer.save()
+            
+            # Calculate duration
+            delta = record.check_out_time - record.check_in_time
             hours = int(delta.total_seconds() // 3600)
             minutes = int((delta.total_seconds() % 3600) // 60)
-            duration_so_far = f"{hours}h {minutes}m"
-        
-        response_data = {
-            'is_checked_in': is_checked_in,
-            'since_time': record.check_in_time if is_checked_in else None,
-            'check_in_time': record.check_in_time,
-            'status_icon': status_icon,
-            'duration_so_far': duration_so_far
-        }
-    else:
-        # No record for today
-        response_data = {
-            'is_checked_in': False,
-            'since_time': None,
-            'check_in_time': None,
-            'status_icon': 'ABSENT',
-            'duration_so_far': None
-        }
+            
+            return Response({
+                'message': 'Checked out successfully',
+                'duration': f"{hours}h {minutes}m",
+                'check_in': record.check_in_time.strftime('%H:%M'),
+                'check_out': record.check_out_time.strftime('%H:%M')
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CurrentStatusView(APIView):
+    """
+    GET /api/attendance/current/
+    Get current attendance status
+    """
+    permission_classes = [IsAuthenticated]
     
-    serializer = CurrentStatusSerializer(response_data)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    def get(self, request):
+        today = timezone.now().date()
+        record = AttendanceRecord.objects.filter(
+            user=request.user,
+            check_in_time__date=today
+        ).first()
+        
+        if record and not record.check_out_time:
+            # Checked in, not checked out
+            data = {
+                'is_checked_in': True,
+                'since_time': record.check_in_time.strftime('%H:%M'),
+                'status_icon': 'PRESENT',
+                'check_in_time': record.check_in_time,
+                'check_out_time': None
+            }
+        elif record and record.check_out_time:
+            # Already checked out
+            data = {
+                'is_checked_in': False,
+                'since_time': None,
+                'status_icon': 'PRESENT',
+                'check_in_time': record.check_in_time,
+                'check_out_time': record.check_out_time
+            }
+        else:
+            # Not checked in
+            data = {
+                'is_checked_in': False,
+                'since_time': None,
+                'status_icon': 'ABSENT',
+                'check_in_time': None,
+                'check_out_time': None
+            }
+        
+        serializer = CurrentStatusSerializer(data)
+        return Response(serializer.data)
+
+
+class AdminDayAttendanceView(APIView):
+    """
+    GET /api/attendance/admin/day/?date=YYYY-MM-DD
+    Admin view - all employees for a specific day
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        if request.user.role not in ['ADMIN', 'HR']:
+            return Response(
+                {'error': 'Admin/HR access only'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get date from query params or use today
+        date_str = request.query_params.get('date')
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {'error': 'Invalid date format. Use YYYY-MM-DD'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            target_date = timezone.now().date()
+        
+        # Get all attendance records for this date
+        records = AttendanceRecord.objects.filter(
+            check_in_time__date=target_date
+        ).select_related('user')
+        
+        # Get all employees
+        all_employees = User.objects.filter(role='EMPLOYEE')
+        
+        # Build response with all employees
+        employee_records = []
+        present_count = 0
+        absent_count = 0
+        leave_count = 0
+        
+        for employee in all_employees:
+            record = records.filter(user=employee).first()
+            if record:
+                employee_records.append(record)
+                if record.status == 'PRESENT':
+                    present_count += 1
+                elif record.status == 'ON_LEAVE':
+                    leave_count += 1
+            else:
+                # Create a placeholder for absent employees
+                absent_count += 1
+                # You might want to create actual absent records here
+        
+        serializer = AttendanceRecordSerializer(employee_records, many=True)
+        
+        return Response({
+            'date': target_date.strftime('%d/%m/%Y'),
+            'employees': serializer.data,
+            'total_present': present_count,
+            'total_absent': absent_count,
+            'total_on_leave': leave_count
+        })
+
+
+class EmployeeMonthAttendanceView(APIView):
+    """
+    GET /api/attendance/me/month/?month=10&year=2025
+    Employee view - their attendance for a month
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        # Get month and year from query params or use current
+        month = int(request.query_params.get('month', timezone.now().month))
+        year = int(request.query_params.get('year', timezone.now().year))
+        
+        # Validate month
+        if month < 1 or month > 12:
+            return Response(
+                {'error': 'Invalid month. Use 1-12'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get first and last day of month
+        first_day = datetime(year, month, 1).date()
+        last_day = datetime(year, month, monthrange(year, month)[1]).date()
+        
+        # Get all records for this month
+        records = AttendanceRecord.objects.filter(
+            user=request.user,
+            check_in_time__date__gte=first_day,
+            check_in_time__date__lte=last_day
+        ).order_by('-check_in_time')
+        
+        # Calculate statistics
+        days_present = records.filter(status='PRESENT').count()
+        days_on_leave = records.filter(status='ON_LEAVE').count()
+        total_days = (last_day - first_day).days + 1
+        
+        serializer = AttendanceRecordSerializer(records, many=True)
+        
+        month_names = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        ]
+        
+        return Response({
+            'month': month_names[month - 1],
+            'year': year,
+            'days_present': days_present,
+            'days_on_leave': days_on_leave,
+            'total_days': total_days,
+            'records': serializer.data
+        })
