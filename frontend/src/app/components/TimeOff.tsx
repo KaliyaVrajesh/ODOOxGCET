@@ -17,6 +17,7 @@ interface TimeOffProps {
   userRole: UserRole;
   userName: string;
   onBack?: () => void;
+  onNavigateToAttendance?: () => void;
   onNavigateToProfile?: () => void;
   onLogout: () => void;
 }
@@ -64,7 +65,7 @@ const mockRequests: TimeOffRequest[] = [
   },
 ];
 
-export default function TimeOff({ userRole, userName, onBack, onNavigateToProfile, onLogout }: TimeOffProps) {
+export default function TimeOff({ userRole, userName, onBack, onNavigateToAttendance, onNavigateToProfile, onLogout }: TimeOffProps) {
   const [activeNavTab, setActiveNavTab] = useState<'employees' | 'attendance' | 'timeoff'>('timeoff');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
@@ -131,7 +132,7 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToProfil
               <button
                 onClick={() => {
                   setActiveNavTab('attendance');
-                  onBack?.();
+                  onNavigateToAttendance?.();
                 }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeNavTab === 'attendance'

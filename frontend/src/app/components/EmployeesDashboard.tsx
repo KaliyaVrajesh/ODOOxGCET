@@ -59,6 +59,7 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
         setCurrentView('dashboard');
         setActiveTab('employees');
       }}
+      onNavigateToAttendance={() => setCurrentView('attendance')}
       onNavigateToProfile={() => setCurrentView('profile')}
       onLogout={onLogout}
     />;
@@ -73,6 +74,7 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
         setCurrentView('dashboard');
         setActiveTab('employees');
       }}
+      onNavigateToTimeOff={() => setCurrentView('timeoff')}
       onNavigateToProfile={() => setCurrentView('profile')}
       onLogout={onLogout}
     />;

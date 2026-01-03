@@ -41,11 +41,12 @@ interface AttendancePageProps {
   userRole: UserRole;
   userName: string;
   onBack?: () => void;
+  onNavigateToTimeOff?: () => void;
   onNavigateToProfile?: () => void;
   onLogout: () => void;
 }
 
-export default function AttendancePage({ userRole, userName, onBack, onNavigateToProfile, onLogout }: AttendancePageProps) {
+export default function AttendancePage({ userRole, userName, onBack, onNavigateToTimeOff, onNavigateToProfile, onLogout }: AttendancePageProps) {
   const [activeNavTab, setActiveNavTab] = useState<'employees' | 'attendance' | 'timeoff'>('attendance');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,7 +113,7 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
               <button
                 onClick={() => {
                   setActiveNavTab('timeoff');
-                  onBack?.();
+                  onNavigateToTimeOff?.();
                 }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeNavTab === 'timeoff'
