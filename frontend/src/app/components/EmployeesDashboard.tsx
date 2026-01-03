@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Search, Plus, ChevronRight, Plane, LogOut, User } from 'lucide-react';
+import MyProfile from './MyProfile';
 
 type EmployeeStatus = 'present' | 'on-leave' | 'absent';
 
@@ -28,6 +29,12 @@ export default function EmployeesDashboard() {
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'profile'>('dashboard');
+
+  // Show My Profile view
+  if (currentView === 'profile') {
+    return <MyProfile onBack={() => setCurrentView('dashboard')} />;
+  }
 
   const handleCheckIn = () => {
     setIsCheckedIn(true);
@@ -129,6 +136,7 @@ export default function EmployeesDashboard() {
                     onClick={() => {
                       console.log('Navigate to My Profile');
                       setShowUserDropdown(false);
+                      setCurrentView('profile');
                     }}
                     className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 text-sm"
                   >
