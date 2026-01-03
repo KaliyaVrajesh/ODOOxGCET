@@ -1,11 +1,29 @@
 import { useState } from 'react';
 import { Eye, EyeOff, Upload } from 'lucide-react';
+import EmployeesDashboard from './components/EmployeesDashboard';
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<'signin' | 'signup'>('signin');
+  const [currentPage, setCurrentPage] = useState<'signin' | 'signup' | 'dashboard'>('signin');
   const [showPassword, setShowPassword] = useState(false);
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const handleSignIn = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simulate successful login
+    setCurrentPage('dashboard');
+  };
+
+  const handleSignUp = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simulate successful signup
+    setCurrentPage('dashboard');
+  };
+
+  // Show dashboard if logged in
+  if (currentPage === 'dashboard') {
+    return <EmployeesDashboard />;
+  }
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-6">
@@ -23,7 +41,7 @@ export default function App() {
           <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-8">
             <h1 className="text-center mb-8 text-gray-800">Sign In</h1>
 
-            <form className="space-y-5">
+            <form className="space-y-5" onSubmit={handleSignIn}>
               {/* Login ID / Email */}
               <div>
                 <label htmlFor="loginId" className="block mb-2 text-gray-700 text-sm">
@@ -108,7 +126,7 @@ export default function App() {
             <h1 className="text-center mb-6 text-gray-800">Sign Up</h1>
             <p className="text-center text-gray-500 text-sm mb-6">Admin / HR Registration</p>
 
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={handleSignUp}>
               {/* Company Name */}
               <div>
                 <label htmlFor="companyName" className="block mb-2 text-gray-700 text-sm">
