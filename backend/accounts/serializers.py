@@ -3,6 +3,8 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
+from .utils import generate_random_password
+from datetime import date
 
 class UserResponseSerializer(serializers.ModelSerializer):
     class Meta:
@@ -112,3 +114,117 @@ class AuthTokenResponseSerializer(serializers.Serializer):
             'access': str(refresh.access_token),
             'refresh': str(refresh),
         }
+
+
+class CreateEmployeeSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Admin/HR to create new employees.
+    Password is auto-generated and returned in response.
+    """
+    generated_password = serializers.CharField(read_only=True)
+    
+    class Meta:
+        model = User
+        fields = ['company_name', 'full_name', 'email', 'phone', 'role', 'date_of_joining', 'generated_password', 'login_id']
+        read_only_fields = ['login_id', 'generated_password']
+    
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError('A user with this email already exists.')
+        return value
+    
+    def validate_role(self, value):
+        # Only allow creating EMPLOYEE, HR, or ADMIN roles
+        if value not in ['EMPLOYEE', 'HR', 'ADMIN']:
+            raise serializers.ValidationError('Invalid role. Must be EMPLOYEE, HR, or ADMIN.')
+        return value
+    
+    def validate_date_of_joining(self, value):
+        if value and value > date.today():
+            raise serializers.ValidationError('Date of joining cannot be in the future.')
+        return value
+    
+    def create(self, validated_data):
+        # Generate random password
+        generated_password = generate_random_password()
+        
+        # Set date_of_joining to today if not provided
+        if not validated_data.get('date_of_joining'):
+            validated_data['date_of_joining'] = date.today()
+        
+        # Create user with auto-generated password
+        user = User.objects.create_user(
+            email=validated_data['email'],
+            password=generated_password,
+            company_name=validated_data['company_name'],
+            full_name=validated_data['full_name'],
+            phone=validated_data['phone'],
+            role=validated_data['role'],
+            date_of_joining=validated_data['date_of_joining'],
+            is_active=True,
+            is_first_login=True  # Mark as first login
+        )
+        
+        # Attach generated password to user object for response
+        user.generated_password = generated_password
+        
+        return user
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """
+    Serializer for users to change their password.
+    """
+    old_password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
+    new_password = serializers.CharField(write_only=True, min_length=8, style={'input_type': 'password'})
+    confirm_password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+    
+    def validate_new_password(self, value):
+        """
+        Validate password:
+        - Minimum 8 characters
+        - At least one number
+        - At least one letter
+        """
+        if len(value) < 8:
+            raise serializers.ValidationError('Password must be at least 8 characters long.')
+        
+        if not re.search(r'\d', value):
+            raise serializers.ValidationError('Password must contain at least one number.')
+        
+        if not re.search(r'[a-zA-Z]', value):
+            raise serializers.ValidationError('Password must contain at least one letter.')
+        
+        return value
+    
+    def validate(self, data):
+        if data.get('new_password') != data.get('confirm_password'):
+            raise serializers.ValidationError({'confirm_password': 'Passwords do not match.'})
+        
+        # If not first login, old password is required
+        user = self.context['request'].user
+        if not user.is_first_login and not data.get('old_password'):
+            raise serializers.ValidationError({'old_password': 'Old password is required.'})
+        
+        # Verify old password if provided
+        if data.get('old_password') and not user.check_password(data['old_password']):
+            raise serializers.ValidationError({'old_password': 'Old password is incorrect.'})
+        
+        return data
+    
+    def save(self):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.is_first_login = False  # Mark that user has changed password
+        user.save()
+        return user
+
+
+class EmployeeListSerializer(serializers.ModelSerializer):
+    """
+    Serializer for listing employees (Admin/HR view)
+    """
+    class Meta:
+        model = User
+        fields = ['id', 'login_id', 'full_name', 'email', 'phone', 'role', 'date_of_joining', 'is_active', 'is_first_login', 'date_joined']
+        read_only_fields = fields

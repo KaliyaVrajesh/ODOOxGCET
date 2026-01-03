@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 
@@ -28,6 +29,7 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
         ('ADMIN', 'Admin'),
+        ('HR', 'HR Manager'),
         ('EMPLOYEE', 'Employee'),
     ]
 
@@ -37,9 +39,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     full_name = models.CharField(max_length=255)
     email = models.EmailField(unique=True, max_length=255)
     phone = models.CharField(max_length=20)
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='ADMIN')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='EMPLOYEE')
+    date_of_joining = models.DateField(null=True, blank=True)  # Year used in login_id
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    is_first_login = models.BooleanField(default=True)  # Track if user needs to change password
     date_joined = models.DateTimeField(auto_now_add=True)
 
     objects = UserManager()
@@ -60,5 +64,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         # Generate login_id if not set
         if not self.login_id:
             from accounts.utils import generate_login_id
-            self.login_id = generate_login_id(self.company_name, self.full_name)
+            # Use date_of_joining year if available, otherwise current year
+            joining_year = self.date_of_joining.year if self.date_of_joining else datetime.now().year
+            self.login_id = generate_login_id(self.company_name, self.full_name, joining_year)
         super().save(*args, **kwargs)
