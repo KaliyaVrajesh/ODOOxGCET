@@ -1,13 +1,15 @@
 from datetime import datetime
+import secrets
+import string
 
-def generate_login_id(company_name, full_name):
+def generate_login_id(company_name, full_name, joining_year=None):
     """
     Generate login_id in format: {company_code}{name_code}{year}{serial}
     Example: OIJODO20220001
     
-    - company_code: First 2 letters of company name (uppercase)
+    - company_code: First 2 letters of company name (uppercase) - e.g., "OI" for "Odoo India"
     - name_code: First 2 letters of first name + first 2 letters of last name (uppercase)
-    - year: Current 4-digit year
+    - year: Year of joining (4-digit)
     - serial: 4-digit incremental number for that year
     """
     from accounts.models import User
@@ -32,11 +34,11 @@ def generate_login_id(company_name, full_name):
     
     name_code = first_code + last_code
     
-    # Get current year
-    current_year = datetime.now().year
+    # Use provided joining_year or current year
+    year = joining_year if joining_year else datetime.now().year
     
     # Find the next serial number for this year
-    prefix = f"{company_code}{name_code}{current_year}"
+    prefix = f"{company_code}{name_code}{year}"
     
     # Get all login_ids that start with this prefix
     existing_ids = User.objects.filter(
@@ -56,3 +58,26 @@ def generate_login_id(company_name, full_name):
     serial_str = str(next_serial).zfill(4)
     
     return f"{prefix}{serial_str}"
+
+
+def generate_random_password(length=12):
+    """
+    Generate a secure random password for new users.
+    Password contains uppercase, lowercase, digits, and special characters.
+    """
+    # Ensure password has at least one of each type
+    password_chars = [
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.digits),
+        secrets.choice('!@#$%^&*')
+    ]
+    
+    # Fill the rest with random characters
+    all_chars = string.ascii_letters + string.digits + '!@#$%^&*'
+    password_chars += [secrets.choice(all_chars) for _ in range(length - 4)]
+    
+    # Shuffle to avoid predictable patterns
+    secrets.SystemRandom().shuffle(password_chars)
+    
+    return ''.join(password_chars)

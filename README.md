@@ -34,7 +34,38 @@ A full-stack employee management system built with Django REST Framework and Rea
 - Node.js 16+
 - PostgreSQL 12+
 
-### Backend Setup
+### Automated Setup (Recommended)
+
+**Windows Users:**
+1. Run `setup_backend_complete.bat` - Sets up backend, database, and creates demo data
+2. Run `setup_frontend.bat` - Sets up frontend
+3. Run `start_backend.bat` - Starts Django server
+4. In a new terminal, run `npm run dev` in the frontend folder
+
+### Demo Data
+
+The system includes comprehensive test data with:
+- 7 users (1 Admin, 1 HR, 5 Employees)
+- Complete profiles with personal info, education, experience
+- Bank details and salary structures
+- Skills and certifications
+- 7 days of attendance records
+- Sample time off requests (approved, pending, rejected)
+
+**View Demo Data:**
+```bash
+cd backend
+python manage.py reset_all_data  # Reset and recreate all demo data
+```
+
+See `backend/DATABASE_DEMO_DATA.md` for complete documentation of demo data.
+
+**Login Credentials:**
+- Admin: admin@dayflow.com / admin123
+- HR: hr@dayflow.com / hr123
+- Employees: john.doe@dayflow.com / employee123 (and 4 others)
+
+### Manual Backend Setup
 
 1. Navigate to backend directory:
 ```bash

@@ -3,6 +3,7 @@ import { Search, Plus, ChevronRight, Plane, LogOut, User } from 'lucide-react';
 import MyProfile from './MyProfile';
 import TimeOff from './TimeOff';
 import AttendancePage from './AttendancePage';
+import EmployeeDetail from './EmployeeDetail';
 import { employeesApi } from '../../api/employees';
 import { attendanceApi } from '../../api/attendance';
 import { handleApiError } from '../../api/client';
@@ -29,10 +30,11 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentView, setCurrentView] = useState<'dashboard' | 'profile' | 'timeoff' | 'attendance'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'profile' | 'timeoff' | 'attendance' | 'employee-detail'>('dashboard');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
   // Load employees on mount
   useEffect(() => {
@@ -114,8 +116,8 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
   }, [searchQuery]);
 
   const handleEmployeeClick = (employeeId: string) => {
-    console.log('Open employee profile:', employeeId);
-    // This would navigate to employee information page in view-only mode
+    setSelectedEmployeeId(employeeId);
+    setCurrentView('employee-detail');
   };
 
   const getStatusIndicator = (status: EmployeeStatus) => {
@@ -132,6 +134,20 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
         return <div className="w-4 h-4 bg-yellow-500 rounded-full border-2 border-white shadow-sm" />;
     }
   };
+
+  // Show Employee Detail view
+  if (currentView === 'employee-detail' && selectedEmployeeId) {
+    return <EmployeeDetail 
+      employeeId={selectedEmployeeId}
+      userRole={userRole}
+      userName={userName}
+      onBack={() => {
+        setCurrentView('dashboard');
+        setSelectedEmployeeId(null);
+      }}
+      onLogout={onLogout}
+    />;
+  }
 
   // Show My Profile view
   if (currentView === 'profile') {
