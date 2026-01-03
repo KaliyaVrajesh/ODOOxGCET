@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Plus, ChevronRight, Plane, LogOut, User } from 'lucide-react';
 import MyProfile from './MyProfile';
 import TimeOff from './TimeOff';
 import AttendancePage from './AttendancePage';
+import { employeesApi } from '../../api/employees';
+import { attendanceApi } from '../../api/attendance';
+import { handleApiError } from '../../api/client';
 
 type EmployeeStatus = 'present' | 'on-leave' | 'absent';
 type UserRole = 'admin' | 'employee';
@@ -20,18 +23,6 @@ interface EmployeesDashboardProps {
   onLogout: () => void;
 }
 
-const mockEmployees: Employee[] = [
-  { id: '1', name: 'Sarah Johnson', status: 'present' },
-  { id: '2', name: 'Michael Chen', status: 'on-leave' },
-  { id: '3', name: 'Emily Rodriguez', status: 'present' },
-  { id: '4', name: 'David Kim', status: 'absent' },
-  { id: '5', name: 'Jessica Williams', status: 'present' },
-  { id: '6', name: 'Robert Taylor', status: 'on-leave' },
-  { id: '7', name: 'Amanda Brown', status: 'present' },
-  { id: '8', name: 'James Wilson', status: 'absent' },
-  { id: '9', name: 'Lisa Anderson', status: 'present' },
-];
-
 export default function EmployeesDashboard({ userRole, userName, onLogout }: EmployeesDashboardProps) {
   const [activeTab, setActiveTab] = useState<'employees' | 'attendance' | 'timeoff'>('employees');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -39,6 +30,108 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
   const [checkInTime, setCheckInTime] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentView, setCurrentView] = useState<'dashboard' | 'profile' | 'timeoff' | 'attendance'>('dashboard');
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+
+  // Load employees on mount
+  useEffect(() => {
+    loadEmployees(); // Load for all users, not just admin
+  }, [userRole]);
+
+  // Load current attendance status on mount and when component becomes visible
+  useEffect(() => {
+    loadCurrentStatus();
+  }, []);
+
+  const loadEmployees = async () => {
+    try {
+      setLoading(true);
+      setError(''); // Clear any previous errors
+      const employeesList = await employeesApi.list({ search: searchQuery });
+      
+      // Map API response to component format
+      const mappedEmployees = employeesList.map(emp => ({
+        id: emp.id,
+        name: emp.full_name,
+        status: emp.status_icon.toLowerCase().replace('_', '-') as EmployeeStatus,
+        avatar: emp.profile_picture || undefined,
+      }));
+      
+      setEmployees(mappedEmployees);
+    } catch (err) {
+      setError(handleApiError(err));
+      console.error('Failed to load employees:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCurrentStatus = async () => {
+    try {
+      const status = await attendanceApi.getCurrentStatus();
+      setIsCheckedIn(status.is_checked_in);
+      setCheckInTime(status.since_time || '');
+    } catch (err) {
+      console.error('Failed to load status:', err);
+    }
+  };
+
+  const handleCheckIn = async () => {
+    try {
+      const response = await attendanceApi.checkIn();
+      setIsCheckedIn(true);
+      setCheckInTime(response.since_time);
+      
+      // Reload employees to update status dots for all users
+      loadEmployees();
+    } catch (err) {
+      alert(handleApiError(err));
+    }
+  };
+
+  const handleCheckOut = async () => {
+    try {
+      const response = await attendanceApi.checkOut();
+      setIsCheckedIn(false);
+      setCheckInTime('');
+      alert(`Checked out successfully. Duration: ${response.duration}`);
+      
+      // Reload employees to update status dots for all users
+      loadEmployees();
+    } catch (err) {
+      alert(handleApiError(err));
+    }
+  };
+
+  // Search employees when query changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadEmployees();
+    }, 300); // Debounce search
+    
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleEmployeeClick = (employeeId: string) => {
+    console.log('Open employee profile:', employeeId);
+    // This would navigate to employee information page in view-only mode
+  };
+
+  const getStatusIndicator = (status: EmployeeStatus) => {
+    switch (status) {
+      case 'present':
+        return <div className="w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-sm" />;
+      case 'on-leave':
+        return (
+          <div className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-sm flex items-center justify-center">
+            <Plane size={12} className="text-white" />
+          </div>
+        );
+      case 'absent':
+        return <div className="w-4 h-4 bg-yellow-500 rounded-full border-2 border-white shadow-sm" />;
+    }
+  };
 
   // Show My Profile view
   if (currentView === 'profile') {
@@ -80,45 +173,7 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
     />;
   }
 
-  const handleCheckIn = () => {
-    setIsCheckedIn(true);
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
-    });
-    setCheckInTime(timeString);
-  };
-
-  const handleCheckOut = () => {
-    setIsCheckedIn(false);
-    setCheckInTime('');
-  };
-
-  const handleEmployeeClick = (employeeId: string) => {
-    console.log('Open employee profile:', employeeId);
-    // This would navigate to employee information page in view-only mode
-  };
-
-  const getStatusIndicator = (status: EmployeeStatus) => {
-    switch (status) {
-      case 'present':
-        return <div className="w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-sm" />;
-      case 'on-leave':
-        return (
-          <div className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-sm flex items-center justify-center">
-            <Plane size={12} className="text-white" />
-          </div>
-        );
-      case 'absent':
-        return <div className="w-4 h-4 bg-yellow-500 rounded-full border-2 border-white shadow-sm" />;
-    }
-  };
-
-  const filteredEmployees = mockEmployees.filter((emp: Employee) =>
-    emp.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredEmployees = employees;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -238,26 +293,46 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
 
           {/* Employee Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {filteredEmployees.map((employee) => (
-              <button
-                key={employee.id}
-                onClick={() => handleEmployeeClick(employee.id)}
-                className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-all cursor-pointer text-left relative group"
-              >
-                {/* Status Indicator - Top Right */}
-                <div className="absolute top-4 right-4">
-                  {getStatusIndicator(employee.status)}
-                </div>
+            {loading ? (
+              <div className="col-span-full text-center py-12">
+                <p className="text-gray-500">Loading employees...</p>
+              </div>
+            ) : error ? (
+              <div className="col-span-full text-center py-12">
+                <p className="text-red-500">{error}</p>
+                <button
+                  onClick={loadEmployees}
+                  className="mt-4 px-4 py-2 bg-[#E381FF] text-white rounded-lg hover:bg-[#d66bfa]"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : filteredEmployees.length === 0 ? (
+              <div className="col-span-full text-center py-12">
+                <p className="text-gray-500">No employees found</p>
+              </div>
+            ) : (
+              filteredEmployees.map((employee) => (
+                <button
+                  key={employee.id}
+                  onClick={() => handleEmployeeClick(employee.id)}
+                  className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-all cursor-pointer text-left relative group"
+                >
+                  {/* Status Indicator - Top Right */}
+                  <div className="absolute top-4 right-4">
+                    {getStatusIndicator(employee.status)}
+                  </div>
 
-                {/* Avatar */}
-                <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center mb-3">
-                  <User size={32} className="text-gray-400" />
-                </div>
+                  {/* Avatar */}
+                  <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center mb-3">
+                    <User size={32} className="text-gray-400" />
+                  </div>
 
-                {/* Employee Name */}
-                <p className="text-gray-800">{employee.name}</p>
-              </button>
-            ))}
+                  {/* Employee Name */}
+                  <p className="text-gray-800">{employee.name}</p>
+                </button>
+              ))
+            )}
           </div>
 
           {/* Status Legend */}

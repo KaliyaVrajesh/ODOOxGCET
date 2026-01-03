@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Upload } from 'lucide-react';
 import EmployeesDashboard from './components/EmployeesDashboard';
+import { authApi } from '../api/auth';
+import { handleApiError } from '../api/client';
 
 type UserRole = 'admin' | 'employee';
 
@@ -17,56 +19,97 @@ export default function App() {
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState(false);
 
-  // Test users
-  const testUsers = {
-    admin: {
-      id: '1',
-      name: 'Admin User',
-      email: 'admin@dayflow.com',
-      role: 'admin' as UserRole,
-      password: 'admin123'
-    },
-    employee: {
-      id: '2',
-      name: 'John Employee',
-      email: 'employee@dayflow.com',
-      role: 'employee' as UserRole,
-      password: 'employee123'
+  // Check if user is already logged in on mount
+  useEffect(() => {
+    const user = authApi.getCurrentUser();
+    if (user) {
+      setCurrentUser({
+        id: user.id,
+        name: user.full_name,
+        email: user.email,
+        role: (user.role === 'ADMIN' || user.role === 'HR') ? 'admin' : 'employee',
+      });
+      setCurrentPage('dashboard');
     }
-  };
+  }, []);
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
+
     const form = e.target as HTMLFormElement;
-    const loginId = (form.elements.namedItem('loginId') as HTMLInputElement).value.toLowerCase();
+    const loginId = (form.elements.namedItem('loginId') as HTMLInputElement).value;
     const password = (form.elements.namedItem('password') as HTMLInputElement).value;
 
-    // Check test users
-    if (loginId === 'admin@dayflow.com' && password === 'admin123') {
-      setCurrentUser(testUsers.admin);
+    try {
+      const response = await authApi.signin({
+        login_identifier: loginId,
+        password: password,
+      });
+
+      setCurrentUser({
+        id: response.user.id,
+        name: response.user.full_name,
+        email: response.user.email,
+        role: (response.user.role === 'ADMIN' || response.user.role === 'HR') ? 'admin' : 'employee',
+      });
       setCurrentPage('dashboard');
-    } else if (loginId === 'employee@dayflow.com' && password === 'employee123') {
-      setCurrentUser(testUsers.employee);
-      setCurrentPage('dashboard');
-    } else {
-      alert('Invalid credentials. Try:\nAdmin: admin@dayflow.com / admin123\nEmployee: employee@dayflow.com / employee123');
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate successful signup as admin
-    setCurrentUser({
-      id: '3',
-      name: 'New Admin',
-      email: 'newadmin@dayflow.com',
-      role: 'admin'
-    });
-    setCurrentPage('dashboard');
+    setError('');
+    setLoading(true);
+
+    const form = e.target as HTMLFormElement;
+    const companyName = (form.elements.namedItem('companyName') as HTMLInputElement).value;
+    const name = (form.elements.namedItem('name') as HTMLInputElement).value;
+    const email = (form.elements.namedItem('email') as HTMLInputElement).value;
+    const phone = (form.elements.namedItem('phone') as HTMLInputElement).value;
+    const password = (form.elements.namedItem('signupPassword') as HTMLInputElement).value;
+    const confirmPassword = (form.elements.namedItem('confirmPassword') as HTMLInputElement).value;
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await authApi.signup({
+        company_name: companyName,
+        full_name: name,
+        email: email,
+        phone: phone,
+        password: password,
+        confirm_password: confirmPassword,
+      });
+
+      setCurrentUser({
+        id: response.user.id,
+        name: response.user.full_name,
+        email: response.user.email,
+        role: (response.user.role === 'ADMIN' || response.user.role === 'HR') ? 'admin' : 'employee',
+      });
+      setCurrentPage('dashboard');
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogout = () => {
+    authApi.signout();
     setCurrentUser(null);
     setCurrentPage('signin');
   };
@@ -130,22 +173,22 @@ export default function App() {
 
               {/* Error Message Space */}
               <div className="min-h-[24px]">
-                {/* <p className="text-red-500 text-sm">Error message will appear here</p> */}
+                {error && <p className="text-red-500 text-sm">{error}</p>}
               </div>
 
               {/* Sign In Button */}
               <button
                 type="submit"
-                className="w-full bg-[#E381FF] hover:bg-[#d66bfa] text-white py-3 rounded-lg transition-colors duration-200"
+                disabled={loading}
+                className="w-full bg-[#E381FF] hover:bg-[#d66bfa] text-white py-3 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                SIGN IN
+                {loading ? 'SIGNING IN...' : 'SIGN IN'}
               </button>
 
               {/* Test Credentials Info */}
               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-800 font-semibold mb-2">Test Credentials:</p>
-                <p className="text-xs text-blue-700">Admin: admin@dayflow.com / admin123</p>
-                <p className="text-xs text-blue-700">Employee: employee@dayflow.com / employee123</p>
+                <p className="text-xs text-blue-800 font-semibold mb-2">Backend Connected!</p>
+                <p className="text-xs text-blue-700">Create an account or use test data from backend</p>
               </div>
 
               {/* Sign Up Link */}
@@ -283,15 +326,16 @@ export default function App() {
 
               {/* Error Message Space */}
               <div className="min-h-[24px]">
-                {/* <p className="text-red-500 text-sm">Validation errors will appear here</p> */}
+                {error && <p className="text-red-500 text-sm">{error}</p>}
               </div>
 
               {/* Sign Up Button */}
               <button
                 type="submit"
-                className="w-full bg-[#E381FF] hover:bg-[#d66bfa] text-white py-3 rounded-lg transition-colors duration-200"
+                disabled={loading}
+                className="w-full bg-[#E381FF] hover:bg-[#d66bfa] text-white py-3 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Sign Up
+                {loading ? 'SIGNING UP...' : 'Sign Up'}
               </button>
 
               {/* Sign In Link */}

@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, LogOut, ChevronLeft, ChevronRight, ChevronDown, Search } from 'lucide-react';
+import { attendanceApi } from '../../api/attendance';
+import { handleApiError } from '../../api/client';
 
 type UserRole = 'admin' | 'employee';
 
@@ -12,30 +14,6 @@ interface AttendanceRecord {
   workHours: string;
   extraHours: string;
 }
-
-// Mock data for Admin view
-const mockAdminAttendance: AttendanceRecord[] = [
-  { id: '1', employeeName: 'Sarah Johnson', checkIn: '10:00', checkOut: '19:00', workHours: '09:00', extraHours: '01:00' },
-  { id: '2', employeeName: 'Michael Chen', checkIn: '09:30', checkOut: '18:30', workHours: '09:00', extraHours: '00:00' },
-  { id: '3', employeeName: 'Emily Rodriguez', checkIn: '10:15', checkOut: '19:15', workHours: '09:00', extraHours: '01:00' },
-  { id: '4', employeeName: 'David Kim', checkIn: '09:00', checkOut: '18:00', workHours: '09:00', extraHours: '00:00' },
-  { id: '5', employeeName: 'Jessica Williams', checkIn: '10:00', checkOut: '20:00', workHours: '10:00', extraHours: '02:00' },
-  { id: '6', employeeName: 'Robert Taylor', checkIn: '09:45', checkOut: '18:45', workHours: '09:00', extraHours: '00:00' },
-  { id: '7', employeeName: 'Amanda Brown', checkIn: '10:30', checkOut: '19:30', workHours: '09:00', extraHours: '01:00' },
-  { id: '8', employeeName: 'James Wilson', checkIn: '09:15', checkOut: '18:15', workHours: '09:00', extraHours: '00:00' },
-];
-
-// Mock data for Employee view
-const mockEmployeeAttendance: AttendanceRecord[] = [
-  { id: '1', date: '28/10/2025', checkIn: '10:00', checkOut: '19:00', workHours: '09:00', extraHours: '01:00' },
-  { id: '2', date: '27/10/2025', checkIn: '09:30', checkOut: '18:30', workHours: '09:00', extraHours: '00:00' },
-  { id: '3', date: '26/10/2025', checkIn: '10:15', checkOut: '19:15', workHours: '09:00', extraHours: '01:00' },
-  { id: '4', date: '25/10/2025', checkIn: '09:00', checkOut: '18:00', workHours: '09:00', extraHours: '00:00' },
-  { id: '5', date: '24/10/2025', checkIn: '10:00', checkOut: '20:00', workHours: '10:00', extraHours: '02:00' },
-  { id: '6', date: '23/10/2025', checkIn: '09:45', checkOut: '18:45', workHours: '09:00', extraHours: '00:00' },
-  { id: '7', date: '22/10/2025', checkIn: '10:30', checkOut: '19:30', workHours: '09:00', extraHours: '01:00' },
-  { id: '8', date: '21/10/2025', checkIn: '09:15', checkOut: '18:15', workHours: '09:00', extraHours: '00:00' },
-];
 
 interface AttendancePageProps {
   userRole: UserRole;
@@ -50,13 +28,94 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
   const [activeNavTab, setActiveNavTab] = useState<'employees' | 'attendance' | 'timeoff'>('attendance');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDate, setSelectedDate] = useState('22 October 2025');
-  const [selectedMonth, setSelectedMonth] = useState('Oct');
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  
+  // Admin view stats
+  const [totalPresent, setTotalPresent] = useState(0);
+  const [totalAbsent, setTotalAbsent] = useState(0);
+  const [totalOnLeave, setTotalOnLeave] = useState(0);
+  
+  // Employee view stats
+  const [daysPresent, setDaysPresent] = useState(0);
+  const [daysOnLeave, setDaysOnLeave] = useState(0);
+  const [totalDays, setTotalDays] = useState(0);
 
   const isAdmin = userRole === 'admin';
-  const attendanceData = isAdmin ? mockAdminAttendance : mockEmployeeAttendance;
+
+  // Load data on mount and when date/month changes
+  useEffect(() => {
+    if (isAdmin) {
+      loadAdminDayAttendance();
+    } else {
+      loadEmployeeMonthAttendance();
+    }
+  }, [isAdmin, selectedDate, selectedMonth, selectedYear]);
+
+  const loadAdminDayAttendance = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const dateStr = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const response = await attendanceApi.getAdminDayAttendance(dateStr);
+      
+      // Map API response to component format
+      const mappedData = response.employees.map(emp => ({
+        id: emp.id,
+        employeeName: emp.employee_name,
+        checkIn: emp.check_in,
+        checkOut: emp.check_out,
+        workHours: emp.work_hours,
+        extraHours: emp.extra_hours,
+      }));
+      
+      setAttendanceData(mappedData);
+      setTotalPresent(response.total_present);
+      setTotalAbsent(response.total_absent);
+      setTotalOnLeave(response.total_on_leave);
+    } catch (err) {
+      setError(handleApiError(err));
+      console.error('Failed to load admin attendance:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadEmployeeMonthAttendance = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const response = await attendanceApi.getEmployeeMonthAttendance(selectedMonth, selectedYear);
+      
+      // Map API response to component format
+      const mappedData = response.records.map(rec => ({
+        id: rec.id,
+        date: rec.date,
+        checkIn: rec.check_in,
+        checkOut: rec.check_out,
+        workHours: rec.work_hours,
+        extraHours: rec.extra_hours,
+      }));
+      
+      setAttendanceData(mappedData);
+      setDaysPresent(response.days_present);
+      setDaysOnLeave(response.days_on_leave);
+      setTotalDays(response.total_days);
+    } catch (err) {
+      setError(handleApiError(err));
+      console.error('Failed to load employee attendance:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredData = attendanceData.filter((record) => {
     if (!searchQuery) return true;
@@ -67,11 +126,42 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
   });
 
   const handlePreviousDate = () => {
-    console.log('Previous date');
+    if (isAdmin) {
+      const newDate = new Date(selectedDate);
+      newDate.setDate(newDate.getDate() - 1);
+      setSelectedDate(newDate);
+    } else {
+      if (selectedMonth === 1) {
+        setSelectedMonth(12);
+        setSelectedYear(selectedYear - 1);
+      } else {
+        setSelectedMonth(selectedMonth - 1);
+      }
+    }
   };
 
   const handleNextDate = () => {
-    console.log('Next date');
+    if (isAdmin) {
+      const newDate = new Date(selectedDate);
+      newDate.setDate(newDate.getDate() + 1);
+      setSelectedDate(newDate);
+    } else {
+      if (selectedMonth === 12) {
+        setSelectedMonth(1);
+        setSelectedYear(selectedYear + 1);
+      } else {
+        setSelectedMonth(selectedMonth + 1);
+      }
+    }
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  };
+
+  const getMonthName = (month: number) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[month - 1];
   };
 
   return (
@@ -198,24 +288,28 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
                       onClick={() => setShowDateDropdown(!showDateDropdown)}
                       className="px-4 py-2 border border-gray-300 rounded-lg flex items-center gap-2 hover:bg-gray-50 transition-colors"
                     >
-                      <span className="text-gray-700 text-sm">{selectedDate}</span>
+                      <span className="text-gray-700 text-sm">{formatDate(selectedDate)}</span>
                       <ChevronDown size={16} className="text-gray-600" />
                     </button>
-                    {showDateDropdown && (
-                      <div className="absolute top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
-                        <button className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 text-sm">
-                          22 October 2025
-                        </button>
-                        <button className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 text-sm">
-                          21 October 2025
-                        </button>
-                        <button className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 text-sm">
-                          20 October 2025
-                        </button>
-                      </div>
-                    )}
                   </div>
-                  <span className="text-gray-600 text-sm">Thursday</span>
+                  <span className="text-gray-600 text-sm">
+                    {selectedDate.toLocaleDateString('en-US', { weekday: 'long' })}
+                  </span>
+                  {/* Admin Summary */}
+                  <div className="flex items-center gap-4 ml-4">
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 mb-1">Present</p>
+                      <p className="text-xl font-semibold text-green-600">{totalPresent}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 mb-1">Absent</p>
+                      <p className="text-xl font-semibold text-red-600">{totalAbsent}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 mb-1">On Leave</p>
+                      <p className="text-xl font-semibold text-yellow-600">{totalOnLeave}</p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-6">
@@ -223,15 +317,15 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
                   <div className="flex items-center gap-4">
                     <div className="text-center">
                       <p className="text-xs text-gray-500 mb-1">Days Present</p>
-                      <p className="text-2xl font-semibold text-gray-800">22</p>
+                      <p className="text-2xl font-semibold text-gray-800">{daysPresent}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-gray-500 mb-1">Leaves Count</p>
-                      <p className="text-2xl font-semibold text-gray-800">3</p>
+                      <p className="text-2xl font-semibold text-gray-800">{daysOnLeave}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-gray-500 mb-1">Total Working Days</p>
-                      <p className="text-2xl font-semibold text-gray-800">25</p>
+                      <p className="text-2xl font-semibold text-gray-800">{totalDays}</p>
                     </div>
                   </div>
 
@@ -241,16 +335,16 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
                       onClick={() => setShowMonthDropdown(!showMonthDropdown)}
                       className="px-4 py-2 border border-gray-300 rounded-lg flex items-center gap-2 hover:bg-gray-50 transition-colors"
                     >
-                      <span className="text-gray-700 text-sm">{selectedMonth}</span>
+                      <span className="text-gray-700 text-sm">{getMonthName(selectedMonth)} {selectedYear}</span>
                       <ChevronDown size={16} className="text-gray-600" />
                     </button>
                     {showMonthDropdown && (
-                      <div className="absolute top-full mt-2 right-0 w-32 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
-                        {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month) => (
+                      <div className="absolute top-full mt-2 right-0 w-32 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10 max-h-64 overflow-y-auto">
+                        {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, index) => (
                           <button
                             key={month}
                             onClick={() => {
-                              setSelectedMonth(month);
+                              setSelectedMonth(index + 1);
                               setShowMonthDropdown(false);
                             }}
                             className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 text-sm"
@@ -282,55 +376,75 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
 
           {/* Attendance Table */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
-                      {isAdmin ? 'Emp' : 'Date'}
-                    </th>
-                    <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">
-                      Check In
-                    </th>
-                    <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">
-                      Check Out
-                    </th>
-                    <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">
-                      Work hours
-                    </th>
-                    <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">
-                      Extra hours
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredData.map((record, index) => (
-                    <tr
-                      key={record.id}
-                      className={`hover:bg-gray-50 transition-colors ${
-                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                      }`}
-                    >
-                      <td className="px-6 py-4 text-sm text-gray-800">
-                        {isAdmin ? record.employeeName : record.date}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 text-right">
-                        {record.checkIn}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 text-right">
-                        {record.checkOut}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 text-right">
-                        {record.workHours}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 text-right">
-                        {record.extraHours}
-                      </td>
+            {loading ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">Loading attendance data...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <p className="text-red-500 mb-4">{error}</p>
+                <button
+                  onClick={() => isAdmin ? loadAdminDayAttendance() : loadEmployeeMonthAttendance()}
+                  className="px-4 py-2 bg-[#E381FF] text-white rounded-lg hover:bg-[#d66bfa]"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : filteredData.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No attendance records found</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                        {isAdmin ? 'Emp' : 'Date'}
+                      </th>
+                      <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">
+                        Check In
+                      </th>
+                      <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">
+                        Check Out
+                      </th>
+                      <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">
+                        Work hours
+                      </th>
+                      <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">
+                        Extra hours
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredData.map((record, index) => (
+                      <tr
+                        key={record.id}
+                        className={`hover:bg-gray-50 transition-colors ${
+                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                        }`}
+                      >
+                        <td className="px-6 py-4 text-sm text-gray-800">
+                          {isAdmin ? record.employeeName : record.date}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                          {record.checkIn}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                          {record.checkOut}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                          {record.workHours}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                          {record.extraHours}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Note Box (Admin Only) */}

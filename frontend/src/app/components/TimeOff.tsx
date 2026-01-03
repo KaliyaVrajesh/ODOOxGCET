@@ -1,16 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, LogOut, Search, Plus, X, Upload, Check, XCircle } from 'lucide-react';
+import { timeoffApi } from '../../api/timeoff';
+import { handleApiError } from '../../api/client';
 
-type TimeOffStatus = 'pending' | 'approved' | 'rejected';
+type TimeOffStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 type UserRole = 'employee' | 'admin';
 
 interface TimeOffRequest {
   id: string;
-  employeeName: string;
-  startDate: string;
-  endDate: string;
-  type: string;
+  employee_id?: string;
+  employee_name?: string;
+  timeoff_type_name: string;
+  timeoff_type_code: string;
+  start_date: string;
+  end_date: string;
+  allocation_days: number;
   status: TimeOffStatus;
+  rejection_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface TimeOffBalance {
+  id: string;
+  type_id: string;
+  type_code: string;
+  type_name: string;
+  year: number;
+  allocated_days: number;
+  used_days: number;
+  available_days: number;
 }
 
 interface TimeOffProps {
@@ -22,86 +41,135 @@ interface TimeOffProps {
   onLogout: () => void;
 }
 
-const mockRequests: TimeOffRequest[] = [
-  {
-    id: '1',
-    employeeName: 'Sarah Johnson',
-    startDate: '28/10/2025',
-    endDate: '28/10/2025',
-    type: 'Paid time Off',
-    status: 'pending',
-  },
-  {
-    id: '2',
-    employeeName: 'Michael Chen',
-    startDate: '15/11/2025',
-    endDate: '20/11/2025',
-    type: 'Sick leave',
-    status: 'approved',
-  },
-  {
-    id: '3',
-    employeeName: 'Emily Rodriguez',
-    startDate: '01/12/2025',
-    endDate: '05/12/2025',
-    type: 'Paid time Off',
-    status: 'pending',
-  },
-  {
-    id: '4',
-    employeeName: 'David Kim',
-    startDate: '10/11/2025',
-    endDate: '12/11/2025',
-    type: 'Unpaid leaves',
-    status: 'rejected',
-  },
-  {
-    id: '5',
-    employeeName: 'Jessica Williams',
-    startDate: '22/11/2025',
-    endDate: '22/11/2025',
-    type: 'Paid time Off',
-    status: 'approved',
-  },
-];
-
 export default function TimeOff({ userRole, userName, onBack, onNavigateToAttendance, onNavigateToProfile, onLogout }: TimeOffProps) {
   const [activeNavTab, setActiveNavTab] = useState<'employees' | 'attendance' | 'timeoff'>('timeoff');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [requests, setRequests] = useState<TimeOffRequest[]>(mockRequests);
+  const [requests, setRequests] = useState<TimeOffRequest[]>([]);
+  const [balances, setBalances] = useState<TimeOffBalance[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleApprove = (id: string) => {
-    setRequests(prev =>
-      prev.map(req => (req.id === id ? { ...req, status: 'approved' as TimeOffStatus } : req))
-    );
+  const isAdmin = userRole === 'admin';
+
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, [isAdmin]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      if (isAdmin) {
+        // Load all requests for admin view
+        const requestsData = await timeoffApi.getAdminTimeOffList({ status: undefined });
+        setRequests(requestsData);
+        
+        // Also load admin's own balances so they can create requests
+        const myData = await timeoffApi.getMyTimeOff();
+        setBalances(myData.balances || []);
+      } else {
+        // Load my requests and balances for employee
+        const response = await timeoffApi.getMyTimeOff();
+        setRequests(response.requests || []);
+        setBalances(response.balances || []);
+      }
+    } catch (err) {
+      setError(handleApiError(err));
+      console.error('Failed to load time off data:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReject = (id: string) => {
-    setRequests(prev =>
-      prev.map(req => (req.id === id ? { ...req, status: 'rejected' as TimeOffStatus } : req))
-    );
+  const handleApprove = async (id: string) => {
+    try {
+      const response = await timeoffApi.approveRequest(id);
+      
+      // Update the request in state
+      setRequests(requests.map(req => 
+        req.id === id ? { ...req, status: 'APPROVED' as TimeOffStatus } : req
+      ));
+      
+      alert('Request approved successfully');
+    } catch (err) {
+      alert(handleApiError(err));
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    const reason = prompt('Enter rejection reason:');
+    if (!reason) return;
+    
+    try {
+      const response = await timeoffApi.rejectRequest(id, reason);
+      
+      // Update the request in state
+      setRequests(requests.map(req => 
+        req.id === id ? { ...req, status: 'REJECTED' as TimeOffStatus, rejection_reason: reason } : req
+      ));
+      
+      alert('Request rejected');
+    } catch (err) {
+      alert(handleApiError(err));
+    }
+  };
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    
+    const form = e.target as HTMLFormElement;
+    const timeoffType = (form.elements.namedItem('timeoffType') as HTMLSelectElement).value;
+    const startDate = (form.elements.namedItem('startDate') as HTMLInputElement).value;
+    const endDate = (form.elements.namedItem('endDate') as HTMLInputElement).value;
+    
+    try {
+      const response = await timeoffApi.createRequest({
+        timeoff_type: timeoffType,
+        start_date: startDate,
+        end_date: endDate,
+      });
+      
+      setShowNewRequestModal(false);
+      alert('Request submitted successfully');
+      
+      // Update state with new data
+      setRequests([response.request, ...requests]);
+      setBalances(response.balances);
+    } catch (err) {
+      alert(handleApiError(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getStatusBadge = (status: TimeOffStatus) => {
     const styles = {
-      pending: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-      approved: 'bg-green-100 text-green-700 border-green-300',
-      rejected: 'bg-red-100 text-red-700 border-red-300',
+      PENDING: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+      APPROVED: 'bg-green-100 text-green-700 border-green-300',
+      REJECTED: 'bg-red-100 text-red-700 border-red-300',
     };
 
     return (
       <span className={`px-3 py-1 rounded-full text-xs border ${styles[status]}`}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {status.charAt(0) + status.slice(1).toLowerCase()}
       </span>
     );
   };
 
-  const filteredRequests = requests.filter(req =>
-    req.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    req.type.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredRequests = requests.filter(req => {
+    if (!searchQuery) return true;
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      req.timeoff_type_name.toLowerCase().includes(searchLower) ||
+      (req.employee_name && req.employee_name.toLowerCase().includes(searchLower))
+    );
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -202,7 +270,7 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
         {/* View Label */}
         <div className="mb-4">
           <p className="text-blue-600 text-sm">
-            For {userRole === 'employee' ? 'Employees' : 'Admin & HR Officer'} View
+            For {isAdmin ? 'Admin & HR Officer' : 'Employees'} View
           </p>
         </div>
 
@@ -215,7 +283,7 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
             <Plus size={18} />
             NEW
           </button>
-          {userRole === 'admin' && (
+          {isAdmin && (
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <input
@@ -230,77 +298,99 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
         </div>
 
         {/* Allocation Summary Strip */}
-        <div className="flex items-center justify-center gap-8 mb-8">
-          <div className="bg-white border border-gray-200 rounded-xl px-8 py-6 text-center min-w-[200px]">
-            <h3 className="text-blue-600 mb-2">Paid time off</h3>
-            <p className="text-gray-600 text-sm">24 Days Available</p>
+        {!isAdmin && balances.length > 0 && (
+          <div className="flex items-center justify-center gap-8 mb-8">
+            {balances.map((balance) => (
+              <div key={balance.id} className="bg-white border border-gray-200 rounded-xl px-8 py-6 text-center min-w-[200px]">
+                <h3 className="text-blue-600 mb-2">{balance.type_name}</h3>
+                <p className="text-gray-600 text-sm">{balance.available_days} Days Available</p>
+              </div>
+            ))}
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl px-8 py-6 text-center min-w-[200px]">
-            <h3 className="text-blue-600 mb-2">Sick time off</h3>
-            <p className="text-gray-600 text-sm">07 Days Available</p>
-          </div>
-        </div>
+        )}
 
         {/* Table */}
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <div className="max-h-[500px] overflow-y-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-sm text-gray-700">Name</th>
-                    <th className="px-6 py-4 text-left text-sm text-gray-700">Start Date</th>
-                    <th className="px-6 py-4 text-left text-sm text-gray-700">End Date</th>
-                    <th className="px-6 py-4 text-left text-sm text-gray-700">Time off Type</th>
-                    <th className="px-6 py-4 text-left text-sm text-gray-700">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRequests.map((request, index) => (
-                    <tr
-                      key={request.id}
-                      className={`border-b border-gray-100 hover:bg-gray-50 ${
-                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                      }`}
-                    >
-                      <td className="px-6 py-4 text-sm text-gray-800">{request.employeeName}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{request.startDate}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{request.endDate}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{request.type}</td>
-                      <td className="px-6 py-4">
-                        {userRole === 'employee' ? (
-                          getStatusBadge(request.status)
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            {request.status === 'pending' ? (
-                              <>
-                                <button
-                                  onClick={() => handleApprove(request.id)}
-                                  className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full text-xs flex items-center gap-1 transition-colors"
-                                >
-                                  <Check size={14} />
-                                  Approve
-                                </button>
-                                <button
-                                  onClick={() => handleReject(request.id)}
-                                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full text-xs flex items-center gap-1 transition-colors"
-                                >
-                                  <XCircle size={14} />
-                                  Reject
-                                </button>
-                              </>
-                            ) : (
-                              getStatusBadge(request.status)
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {loading ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">Loading time off requests...</p>
             </div>
-          </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-500 mb-4">{error}</p>
+              <button
+                onClick={loadData}
+                className="px-4 py-2 bg-[#E381FF] text-white rounded-lg hover:bg-[#d66bfa]"
+              >
+                Retry
+              </button>
+            </div>
+          ) : filteredRequests.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No time off requests found</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <div className="max-h-[500px] overflow-y-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+                    <tr>
+                      {isAdmin && <th className="px-6 py-4 text-left text-sm text-gray-700">Name</th>}
+                      <th className="px-6 py-4 text-left text-sm text-gray-700">Start Date</th>
+                      <th className="px-6 py-4 text-left text-sm text-gray-700">End Date</th>
+                      <th className="px-6 py-4 text-left text-sm text-gray-700">Time off Type</th>
+                      <th className="px-6 py-4 text-left text-sm text-gray-700">Days</th>
+                      <th className="px-6 py-4 text-left text-sm text-gray-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRequests.map((request, index) => (
+                      <tr
+                        key={request.id}
+                        className={`border-b border-gray-100 hover:bg-gray-50 ${
+                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                        }`}
+                      >
+                        {isAdmin && <td className="px-6 py-4 text-sm text-gray-800">{request.employee_name}</td>}
+                        <td className="px-6 py-4 text-sm text-gray-600">{request.start_date}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{request.end_date}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{request.timeoff_type_name}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{request.allocation_days}</td>
+                        <td className="px-6 py-4">
+                          {isAdmin ? (
+                            <div className="flex items-center gap-2">
+                              {request.status === 'PENDING' ? (
+                                <>
+                                  <button
+                                    onClick={() => handleApprove(request.id)}
+                                    className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full text-xs flex items-center gap-1 transition-colors"
+                                  >
+                                    <Check size={14} />
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleReject(request.id)}
+                                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full text-xs flex items-center gap-1 transition-colors"
+                                  >
+                                    <XCircle size={14} />
+                                    Reject
+                                  </button>
+                                </>
+                              ) : (
+                                getStatusBadge(request.status)
+                              )}
+                            </div>
+                          ) : (
+                            getStatusBadge(request.status)
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -320,13 +410,13 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
             </div>
 
             {/* Modal Body */}
-            <form className="p-6 space-y-5">
+            <form className="p-6 space-y-5" onSubmit={handleSubmitRequest}>
               {/* Employee */}
               <div>
                 <label className="block mb-2 text-gray-700 text-sm">Employee</label>
                 <input
                   type="text"
-                  value="[Employee]"
+                  value={userName}
                   readOnly
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 text-sm"
                 />
@@ -335,10 +425,17 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
               {/* Time off Type */}
               <div>
                 <label className="block mb-2 text-gray-700 text-sm">Time off Type</label>
-                <select className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm">
-                  <option>Paid time off</option>
-                  <option>Sick leave</option>
-                  <option>Unpaid leaves</option>
+                <select 
+                  name="timeoffType"
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm"
+                >
+                  <option value="">Select type...</option>
+                  {balances.map((balance) => (
+                    <option key={balance.type_id} value={balance.type_id}>
+                      {balance.type_name} ({balance.available_days} days available)
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -350,6 +447,8 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
                     <label className="block mb-1 text-gray-600 text-xs">From</label>
                     <input
                       type="date"
+                      name="startDate"
+                      required
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm"
                     />
                   </div>
@@ -357,32 +456,11 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
                     <label className="block mb-1 text-gray-600 text-xs">To</label>
                     <input
                       type="date"
+                      name="endDate"
+                      required
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm"
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* Allocation */}
-              <div>
-                <label className="block mb-2 text-gray-700 text-sm">Allocation</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    placeholder="0"
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm"
-                  />
-                  <span className="text-gray-600 text-sm">Days</span>
-                </div>
-              </div>
-
-              {/* Attachment */}
-              <div>
-                <label className="block mb-2 text-gray-700 text-sm">Attachment</label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#E381FF] transition-colors cursor-pointer">
-                  <Upload size={32} className="mx-auto text-gray-400 mb-2" />
-                  <p className="text-gray-600 text-sm mb-1">Click to upload or drag and drop</p>
-                  <p className="text-gray-400 text-xs">(For sick leave certificate)</p>
                 </div>
               </div>
 
@@ -391,20 +469,17 @@ export default function TimeOff({ userRole, userName, onBack, onNavigateToAttend
                 <button
                   type="button"
                   onClick={() => setShowNewRequestModal(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                  disabled={submitting}
+                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm disabled:opacity-50"
                 >
                   Discard
                 </button>
                 <button
                   type="submit"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    console.log('Submit new request');
-                    setShowNewRequestModal(false);
-                  }}
-                  className="flex-1 px-6 py-3 bg-[#E381FF] hover:bg-[#d66bfa] text-white rounded-lg transition-colors text-sm"
+                  disabled={submitting}
+                  className="flex-1 px-6 py-3 bg-[#E381FF] hover:bg-[#d66bfa] text-white rounded-lg transition-colors text-sm disabled:opacity-50"
                 >
-                  Submit
+                  {submitting ? 'Submitting...' : 'Submit'}
                 </button>
               </div>
             </form>

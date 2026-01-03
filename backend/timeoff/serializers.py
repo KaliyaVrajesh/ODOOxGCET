@@ -10,6 +10,7 @@ class TimeOffTypeSerializer(serializers.ModelSerializer):
         fields = ['id', 'code', 'name', 'default_annual_allocation_days']
 
 class TimeOffBalanceSerializer(serializers.ModelSerializer):
+    type_id = serializers.UUIDField(source='timeoff_type.id', read_only=True)
     type_code = serializers.CharField(source='timeoff_type.code', read_only=True)
     type_name = serializers.CharField(source='timeoff_type.name', read_only=True)
     available_days = serializers.DecimalField(
@@ -21,7 +22,7 @@ class TimeOffBalanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = TimeOffBalance
         fields = [
-            'id', 'type_code', 'type_name', 'year',
+            'id', 'type_id', 'type_code', 'type_name', 'year',
             'allocated_days', 'used_days', 'available_days'
         ]
         read_only_fields = ['id', 'used_days']
