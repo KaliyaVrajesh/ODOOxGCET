@@ -66,7 +66,17 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
       const dateStr = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD
       const response = await attendanceApi.getAdminDayAttendance(dateStr);
       
-      setAttendanceData(response.employees);
+      // Map API response to component format
+      const mappedData = response.employees.map(emp => ({
+        id: emp.id,
+        employeeName: emp.employee_name,
+        checkIn: emp.check_in,
+        checkOut: emp.check_out,
+        workHours: emp.work_hours,
+        extraHours: emp.extra_hours,
+      }));
+      
+      setAttendanceData(mappedData);
       setTotalPresent(response.total_present);
       setTotalAbsent(response.total_absent);
       setTotalOnLeave(response.total_on_leave);
@@ -85,7 +95,17 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
       
       const response = await attendanceApi.getEmployeeMonthAttendance(selectedMonth, selectedYear);
       
-      setAttendanceData(response.records);
+      // Map API response to component format
+      const mappedData = response.records.map(rec => ({
+        id: rec.id,
+        date: rec.date,
+        checkIn: rec.check_in,
+        checkOut: rec.check_out,
+        workHours: rec.work_hours,
+        extraHours: rec.extra_hours,
+      }));
+      
+      setAttendanceData(mappedData);
       setDaysPresent(response.days_present);
       setDaysOnLeave(response.days_on_leave);
       setTotalDays(response.total_days);
@@ -337,21 +357,6 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
                   </div>
                 </div>
               )}
-                            key={month}
-                            onClick={() => {
-                              setSelectedMonth(month);
-                              setShowMonthDropdown(false);
-                            }}
-                            className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 text-sm"
-                          >
-                            {month}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Search Bar */}
@@ -440,29 +445,6 @@ export default function AttendancePage({ userRole, userName, onBack, onNavigateT
                 </table>
               </div>
             )}
-          </div>
-                      }`}
-                    >
-                      <td className="px-6 py-4 text-sm text-gray-800">
-                        {isAdmin ? record.employeeName : record.date}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 text-right">
-                        {record.checkIn}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 text-right">
-                        {record.checkOut}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 text-right">
-                        {record.workHours}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 text-right">
-                        {record.extraHours}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
 
           {/* Note Box (Admin Only) */}

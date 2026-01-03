@@ -120,6 +120,26 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
     }
   }, [searchQuery, userRole]);
 
+  const handleEmployeeClick = (employeeId: string) => {
+    console.log('Open employee profile:', employeeId);
+    // This would navigate to employee information page in view-only mode
+  };
+
+  const getStatusIndicator = (status: EmployeeStatus) => {
+    switch (status) {
+      case 'present':
+        return <div className="w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-sm" />;
+      case 'on-leave':
+        return (
+          <div className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-sm flex items-center justify-center">
+            <Plane size={12} className="text-white" />
+          </div>
+        );
+      case 'absent':
+        return <div className="w-4 h-4 bg-yellow-500 rounded-full border-2 border-white shadow-sm" />;
+    }
+  };
+
   // Show My Profile view
   if (currentView === 'profile') {
     return <MyProfile 
@@ -160,58 +180,7 @@ export default function EmployeesDashboard({ userRole, userName, onLogout }: Emp
     />;
   }
 
-  const handleCheckOut = async () => {
-    try {
-      const response = await attendanceApi.checkOut();
-      setIsCheckedIn(false);
-      setCheckInTime('');
-      alert(`Checked out successfully. Duration: ${response.duration}`);
-      
-      // Reload employees to update status dots
-      if (userRole === 'admin') {
-        loadEmployees();
-      }
-    } catch (err) {
-      alert(handleApiError(err));
-    }
-  };
-
-  // Search employees when query changes
-  useEffect(() => {
-    if (userRole === 'admin') {
-      const timer = setTimeout(() => {
-        loadEmployees();
-      }, 300); // Debounce search
-      
-      return () => clearTimeout(timer);
-    }
-  }, [searchQuery, userRole]);
-
-  const handleEmployeeClick = (employeeId: string) => {
-    console.log('Open employee profile:', employeeId);
-    // This would navigate to employee information page in view-only mode
-  };
-
   const filteredEmployees = employees;
-
-  const getStatusIndicator = (status: EmployeeStatus) => {
-    switch (status) {
-      case 'present':
-        return <div className="w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-sm" />;
-      case 'on-leave':
-        return (
-          <div className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-sm flex items-center justify-center">
-            <Plane size={12} className="text-white" />
-          </div>
-        );
-      case 'absent':
-        return <div className="w-4 h-4 bg-yellow-500 rounded-full border-2 border-white shadow-sm" />;
-    }
-  };
-
-  const filteredEmployees = mockEmployees.filter((emp: Employee) =>
-    emp.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
