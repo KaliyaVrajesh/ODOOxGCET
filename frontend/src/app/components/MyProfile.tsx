@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { User, Pencil, Plus, LogOut } from 'lucide-react';
 
 interface MyProfileProps {
+  userRole: 'employee' | 'admin';
+  userName: string;
   onBack: () => void;
+  onLogout: () => void;
 }
 
-export default function MyProfile({ onBack }: MyProfileProps) {
+export default function MyProfile({ userRole, userName, onBack, onLogout }: MyProfileProps) {
   const [activeTab, setActiveTab] = useState<'resume' | 'private' | 'salary'>('private');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [activeNavTab, setActiveNavTab] = useState<'employees' | 'attendance' | 'timeoff'>('employees');
@@ -87,7 +90,7 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                   </button>
                   <button
                     onClick={() => {
-                      console.log('Log out');
+                      onLogout();
                       setShowUserDropdown(false);
                     }}
                     className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 text-sm"

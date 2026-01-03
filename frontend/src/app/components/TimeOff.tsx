@@ -13,6 +13,14 @@ interface TimeOffRequest {
   status: TimeOffStatus;
 }
 
+interface TimeOffProps {
+  userRole: UserRole;
+  userName: string;
+  onBack?: () => void;
+  onNavigateToProfile?: () => void;
+  onLogout: () => void;
+}
+
 const mockRequests: TimeOffRequest[] = [
   {
     id: '1',
@@ -56,12 +64,11 @@ const mockRequests: TimeOffRequest[] = [
   },
 ];
 
-export default function TimeOff({ onBack }: { onBack?: () => void }) {
+export default function TimeOff({ userRole, userName, onBack, onNavigateToProfile, onLogout }: TimeOffProps) {
   const [activeNavTab, setActiveNavTab] = useState<'employees' | 'attendance' | 'timeoff'>('timeoff');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [userRole, setUserRole] = useState<UserRole>('employee'); // Toggle for demo
   const [requests, setRequests] = useState<TimeOffRequest[]>(mockRequests);
 
   const handleApprove = (id: string) => {
@@ -159,7 +166,7 @@ export default function TimeOff({ onBack }: { onBack?: () => void }) {
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
                   <button
                     onClick={() => {
-                      console.log('Navigate to My Profile');
+                      onNavigateToProfile?.();
                       setShowUserDropdown(false);
                     }}
                     className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 text-sm"
@@ -169,7 +176,7 @@ export default function TimeOff({ onBack }: { onBack?: () => void }) {
                   </button>
                   <button
                     onClick={() => {
-                      console.log('Log out');
+                      onLogout();
                       setShowUserDropdown(false);
                     }}
                     className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 text-sm"
@@ -186,16 +193,7 @@ export default function TimeOff({ onBack }: { onBack?: () => void }) {
 
       {/* Header Strip */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-gray-800">Time Off</h2>
-          {/* Demo Toggle - Remove in production */}
-          <button
-            onClick={() => setUserRole(userRole === 'employee' ? 'admin' : 'employee')}
-            className="text-xs px-3 py-1 bg-gray-200 rounded text-gray-700 hover:bg-gray-300"
-          >
-            Switch to {userRole === 'employee' ? 'Admin' : 'Employee'} View
-          </button>
-        </div>
+        <h2 className="text-gray-800">Time Off</h2>
       </div>
 
       {/* Main Content */}
@@ -216,16 +214,18 @@ export default function TimeOff({ onBack }: { onBack?: () => void }) {
             <Plus size={18} />
             NEW
           </button>
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm"
-            />
-          </div>
+          {userRole === 'admin' && (
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm"
+              />
+            </div>
+          )}
         </div>
 
         {/* Allocation Summary Strip */}

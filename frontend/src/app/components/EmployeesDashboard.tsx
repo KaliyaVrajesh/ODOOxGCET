@@ -5,12 +5,19 @@ import TimeOff from './TimeOff';
 import AttendancePage from './AttendancePage';
 
 type EmployeeStatus = 'present' | 'on-leave' | 'absent';
+type UserRole = 'admin' | 'employee';
 
 interface Employee {
   id: string;
   name: string;
   status: EmployeeStatus;
   avatar?: string;
+}
+
+interface EmployeesDashboardProps {
+  userRole: UserRole;
+  userName: string;
+  onLogout: () => void;
 }
 
 const mockEmployees: Employee[] = [
@@ -25,7 +32,7 @@ const mockEmployees: Employee[] = [
   { id: '9', name: 'Lisa Anderson', status: 'present' },
 ];
 
-export default function EmployeesDashboard() {
+export default function EmployeesDashboard({ userRole, userName, onLogout }: EmployeesDashboardProps) {
   const [activeTab, setActiveTab] = useState<'employees' | 'attendance' | 'timeoff'>('employees');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
@@ -35,25 +42,39 @@ export default function EmployeesDashboard() {
 
   // Show My Profile view
   if (currentView === 'profile') {
-    return <MyProfile onBack={() => setCurrentView('dashboard')} />;
+    return <MyProfile 
+      userRole={userRole}
+      userName={userName}
+      onBack={() => setCurrentView('dashboard')} 
+      onLogout={onLogout}
+    />;
   }
 
   // Show Time Off view
   if (currentView === 'timeoff') {
-    return <TimeOff onBack={() => {
-      setCurrentView('dashboard');
-      setActiveTab('employees');
-    }} />;
+    return <TimeOff 
+      userRole={userRole}
+      userName={userName}
+      onBack={() => {
+        setCurrentView('dashboard');
+        setActiveTab('employees');
+      }}
+      onNavigateToProfile={() => setCurrentView('profile')}
+      onLogout={onLogout}
+    />;
   }
 
   // Show Attendance view
   if (currentView === 'attendance') {
     return <AttendancePage 
-      userRole="admin" 
+      userRole={userRole}
+      userName={userName}
       onBack={() => {
         setCurrentView('dashboard');
         setActiveTab('employees');
-      }} 
+      }}
+      onNavigateToProfile={() => setCurrentView('profile')}
+      onLogout={onLogout}
     />;
   }
 
@@ -177,6 +198,7 @@ export default function EmployeesDashboard() {
                     onClick={() => {
                       console.log('Log out');
                       setShowUserDropdown(false);
+                      onLogout();
                     }}
                     className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 text-sm"
                   >
