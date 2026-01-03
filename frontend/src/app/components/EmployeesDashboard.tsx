@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Search, Plus, ChevronRight, Plane, LogOut, User } from 'lucide-react';
+import MyProfile from './MyProfile';
+import TimeOff from './TimeOff';
 
 type EmployeeStatus = 'present' | 'on-leave' | 'absent';
 
@@ -28,6 +30,17 @@ export default function EmployeesDashboard() {
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'profile' | 'timeoff'>('dashboard');
+
+  // Show My Profile view
+  if (currentView === 'profile') {
+    return <MyProfile onBack={() => setCurrentView('dashboard')} />;
+  }
+
+  // Show Time Off view
+  if (currentView === 'timeoff') {
+    return <TimeOff />;
+  }
 
   const handleCheckIn = () => {
     setIsCheckedIn(true);
@@ -83,7 +96,10 @@ export default function EmployeesDashboard() {
             {/* Center Tabs */}
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
               <button
-                onClick={() => setActiveTab('employees')}
+                onClick={() => {
+                  setActiveTab('employees');
+                  setCurrentView('dashboard');
+                }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeTab === 'employees'
                     ? 'bg-white text-gray-900 shadow-sm'
@@ -103,7 +119,10 @@ export default function EmployeesDashboard() {
                 Attendance
               </button>
               <button
-                onClick={() => setActiveTab('timeoff')}
+                onClick={() => {
+                  setActiveTab('timeoff');
+                  setCurrentView('timeoff');
+                }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeTab === 'timeoff'
                     ? 'bg-white text-gray-900 shadow-sm'
@@ -129,6 +148,7 @@ export default function EmployeesDashboard() {
                     onClick={() => {
                       console.log('Navigate to My Profile');
                       setShowUserDropdown(false);
+                      setCurrentView('profile');
                     }}
                     className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 text-sm"
                   >
