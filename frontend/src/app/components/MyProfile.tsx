@@ -24,7 +24,10 @@ export default function MyProfile({ onBack }: MyProfileProps) {
             {/* Center Tabs */}
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
               <button
-                onClick={() => setActiveNavTab('employees')}
+                onClick={() => {
+                  setActiveNavTab('employees');
+                  onBack();
+                }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeNavTab === 'employees'
                     ? 'bg-white text-gray-900 shadow-sm'
@@ -34,7 +37,10 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                 Employees
               </button>
               <button
-                onClick={() => setActiveNavTab('attendance')}
+                onClick={() => {
+                  setActiveNavTab('attendance');
+                  onBack();
+                }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeNavTab === 'attendance'
                     ? 'bg-white text-gray-900 shadow-sm'
@@ -44,7 +50,10 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                 Attendance
               </button>
               <button
-                onClick={() => setActiveNavTab('timeoff')}
+                onClick={() => {
+                  setActiveNavTab('timeoff');
+                  onBack();
+                }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeNavTab === 'timeoff'
                     ? 'bg-white text-gray-900 shadow-sm'

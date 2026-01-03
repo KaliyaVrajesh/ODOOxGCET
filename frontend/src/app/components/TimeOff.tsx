@@ -56,7 +56,7 @@ const mockRequests: TimeOffRequest[] = [
   },
 ];
 
-export default function TimeOff() {
+export default function TimeOff({ onBack }: { onBack?: () => void }) {
   const [activeNavTab, setActiveNavTab] = useState<'employees' | 'attendance' | 'timeoff'>('timeoff');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
@@ -109,7 +109,10 @@ export default function TimeOff() {
             {/* Center Tabs */}
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
               <button
-                onClick={() => setActiveNavTab('employees')}
+                onClick={() => {
+                  setActiveNavTab('employees');
+                  onBack?.();
+                }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeNavTab === 'employees'
                     ? 'bg-white text-gray-900 shadow-sm'
@@ -119,7 +122,10 @@ export default function TimeOff() {
                 Employees
               </button>
               <button
-                onClick={() => setActiveNavTab('attendance')}
+                onClick={() => {
+                  setActiveNavTab('attendance');
+                  onBack?.();
+                }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeNavTab === 'attendance'
                     ? 'bg-white text-gray-900 shadow-sm'

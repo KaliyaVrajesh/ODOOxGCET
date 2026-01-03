@@ -39,7 +39,10 @@ export default function EmployeesDashboard() {
 
   // Show Time Off view
   if (currentView === 'timeoff') {
-    return <TimeOff />;
+    return <TimeOff onBack={() => {
+      setCurrentView('dashboard');
+      setActiveTab('employees');
+    }} />;
   }
 
   const handleCheckIn = () => {
@@ -78,7 +81,7 @@ export default function EmployeesDashboard() {
     }
   };
 
-  const filteredEmployees = mockEmployees.filter(emp =>
+  const filteredEmployees = mockEmployees.filter((emp: Employee) =>
     emp.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -174,70 +177,140 @@ export default function EmployeesDashboard() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex">
-        {/* Left Section - Employee Grid */}
+        {/* Left Section - Employee Grid or Attendance View */}
         <div className="flex-1 p-6">
-          {/* Action Bar */}
-          <div className="flex items-center gap-4 mb-6">
-            <button className="bg-[#E381FF] hover:bg-[#d66bfa] text-white px-6 py-2.5 rounded-lg flex items-center gap-2 transition-colors text-sm">
-              <Plus size={18} />
-              NEW
-            </button>
-            <div className="flex-1 max-w-md relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                placeholder="Search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm"
-              />
+          {activeTab === 'employees' && (
+            <>
+              {/* Action Bar */}
+              <div className="flex items-center gap-4 mb-6">
+                <button className="bg-[#E381FF] hover:bg-[#d66bfa] text-white px-6 py-2.5 rounded-lg flex items-center gap-2 transition-colors text-sm">
+                  <Plus size={18} />
+                  NEW
+                </button>
+                <div className="flex-1 max-w-md relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E381FF] focus:border-transparent text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Employee Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                {filteredEmployees.map((employee) => (
+                  <button
+                    key={employee.id}
+                    onClick={() => handleEmployeeClick(employee.id)}
+                    className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-all cursor-pointer text-left relative group"
+                  >
+                    {/* Status Indicator - Top Right */}
+                    <div className="absolute top-4 right-4">
+                      {getStatusIndicator(employee.status)}
+                    </div>
+
+                    {/* Avatar */}
+                    <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center mb-3">
+                      <User size={32} className="text-gray-400" />
+                    </div>
+
+                    {/* Employee Name */}
+                    <p className="text-gray-800">{employee.name}</p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Status Legend */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4 inline-block">
+                <p className="text-gray-700 mb-3 text-sm">Status Indicators:</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-green-500 rounded-full" />
+                    <span className="text-gray-600 text-sm">Present in office</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                      <Plane size={10} className="text-white" />
+                    </div>
+                    <span className="text-gray-600 text-sm">On leave</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-yellow-500 rounded-full" />
+                    <span className="text-gray-600 text-sm">Absent (no time-off applied)</span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'attendance' && (
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-6">Attendance Management</h2>
+              
+              {/* Attendance Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-600 text-sm">Present Today</span>
+                    <div className="w-3 h-3 bg-green-500 rounded-full" />
+                  </div>
+                  <p className="text-3xl font-semibold text-gray-800">
+                    {mockEmployees.filter(e => e.status === 'present').length}
+                  </p>
+                </div>
+                
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-600 text-sm">On Leave</span>
+                    <div className="w-3 h-3 bg-blue-500 rounded-full" />
+                  </div>
+                  <p className="text-3xl font-semibold text-gray-800">
+                    {mockEmployees.filter(e => e.status === 'on-leave').length}
+                  </p>
+                </div>
+                
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-600 text-sm">Absent</span>
+                    <div className="w-3 h-3 bg-yellow-500 rounded-full" />
+                  </div>
+                  <p className="text-3xl font-semibold text-gray-800">
+                    {mockEmployees.filter(e => e.status === 'absent').length}
+                  </p>
+                </div>
+              </div>
+
+              {/* Attendance List */}
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <div className="p-6 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-800">Today's Attendance</h3>
+                </div>
+                <div className="divide-y divide-gray-200">
+                  {mockEmployees.map((employee) => (
+                    <div key={employee.id} className="p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                            <User size={20} className="text-gray-400" />
+                          </div>
+                          <span className="text-gray-800">{employee.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getStatusIndicator(employee.status)}
+                          <span className="text-sm text-gray-600 capitalize">
+                            {employee.status === 'on-leave' ? 'On Leave' : employee.status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Employee Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {filteredEmployees.map((employee) => (
-              <button
-                key={employee.id}
-                onClick={() => handleEmployeeClick(employee.id)}
-                className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-all cursor-pointer text-left relative group"
-              >
-                {/* Status Indicator - Top Right */}
-                <div className="absolute top-4 right-4">
-                  {getStatusIndicator(employee.status)}
-                </div>
-
-                {/* Avatar */}
-                <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center mb-3">
-                  <User size={32} className="text-gray-400" />
-                </div>
-
-                {/* Employee Name */}
-                <p className="text-gray-800">{employee.name}</p>
-              </button>
-            ))}
-          </div>
-
-          {/* Status Legend */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 inline-block">
-            <p className="text-gray-700 mb-3 text-sm">Status Indicators:</p>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 bg-green-500 rounded-full" />
-                <span className="text-gray-600 text-sm">Present in office</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                  <Plane size={10} className="text-white" />
-                </div>
-                <span className="text-gray-600 text-sm">On leave</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 bg-yellow-500 rounded-full" />
-                <span className="text-gray-600 text-sm">Absent (no time-off applied)</span>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Right Section - Check In/Out Panel */}
