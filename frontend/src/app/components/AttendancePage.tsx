@@ -38,11 +38,15 @@ const mockEmployeeAttendance: AttendanceRecord[] = [
 ];
 
 interface AttendancePageProps {
-  userRole?: UserRole;
+  userRole: UserRole;
+  userName: string;
   onBack?: () => void;
+  onNavigateToTimeOff?: () => void;
+  onNavigateToProfile?: () => void;
+  onLogout: () => void;
 }
 
-export default function AttendancePage({ userRole = 'admin', onBack }: AttendancePageProps) {
+export default function AttendancePage({ userRole, userName, onBack, onNavigateToTimeOff, onNavigateToProfile, onLogout }: AttendancePageProps) {
   const [activeNavTab, setActiveNavTab] = useState<'employees' | 'attendance' | 'timeoff'>('attendance');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,7 +113,7 @@ export default function AttendancePage({ userRole = 'admin', onBack }: Attendanc
               <button
                 onClick={() => {
                   setActiveNavTab('timeoff');
-                  onBack?.();
+                  onNavigateToTimeOff?.();
                 }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeNavTab === 'timeoff'
@@ -135,7 +139,7 @@ export default function AttendancePage({ userRole = 'admin', onBack }: Attendanc
                   <button
                     onClick={() => {
                       setShowUserDropdown(false);
-                      console.log('Navigate to My Profile');
+                      onNavigateToProfile?.();
                     }}
                     className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 text-sm"
                   >
@@ -144,8 +148,8 @@ export default function AttendancePage({ userRole = 'admin', onBack }: Attendanc
                   </button>
                   <button
                     onClick={() => {
-                      console.log('Log out');
                       setShowUserDropdown(false);
+                      onLogout();
                     }}
                     className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 text-sm"
                   >

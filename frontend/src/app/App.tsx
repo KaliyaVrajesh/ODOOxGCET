@@ -2,27 +2,78 @@ import { useState } from 'react';
 import { Eye, EyeOff, Upload } from 'lucide-react';
 import EmployeesDashboard from './components/EmployeesDashboard';
 
+type UserRole = 'admin' | 'employee';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+}
+
 export default function App() {
   const [currentPage, setCurrentPage] = useState<'signin' | 'signup' | 'dashboard'>('signin');
   const [showPassword, setShowPassword] = useState(false);
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  // Test users
+  const testUsers = {
+    admin: {
+      id: '1',
+      name: 'Admin User',
+      email: 'admin@dayflow.com',
+      role: 'admin' as UserRole,
+      password: 'admin123'
+    },
+    employee: {
+      id: '2',
+      name: 'John Employee',
+      email: 'employee@dayflow.com',
+      role: 'employee' as UserRole,
+      password: 'employee123'
+    }
+  };
 
   const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate successful login
-    setCurrentPage('dashboard');
+    const form = e.target as HTMLFormElement;
+    const loginId = (form.elements.namedItem('loginId') as HTMLInputElement).value.toLowerCase();
+    const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+
+    // Check test users
+    if (loginId === 'admin@dayflow.com' && password === 'admin123') {
+      setCurrentUser(testUsers.admin);
+      setCurrentPage('dashboard');
+    } else if (loginId === 'employee@dayflow.com' && password === 'employee123') {
+      setCurrentUser(testUsers.employee);
+      setCurrentPage('dashboard');
+    } else {
+      alert('Invalid credentials. Try:\nAdmin: admin@dayflow.com / admin123\nEmployee: employee@dayflow.com / employee123');
+    }
   };
 
   const handleSignUp = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate successful signup
+    // Simulate successful signup as admin
+    setCurrentUser({
+      id: '3',
+      name: 'New Admin',
+      email: 'newadmin@dayflow.com',
+      role: 'admin'
+    });
     setCurrentPage('dashboard');
   };
 
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setCurrentPage('signin');
+  };
+
   // Show dashboard if logged in
-  if (currentPage === 'dashboard') {
-    return <EmployeesDashboard />;
+  if (currentPage === 'dashboard' && currentUser) {
+    return <EmployeesDashboard userRole={currentUser.role} userName={currentUser.name} onLogout={handleLogout} />;
   }
 
   return (
@@ -89,6 +140,13 @@ export default function App() {
               >
                 SIGN IN
               </button>
+
+              {/* Test Credentials Info */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-800 font-semibold mb-2">Test Credentials:</p>
+                <p className="text-xs text-blue-700">Admin: admin@dayflow.com / admin123</p>
+                <p className="text-xs text-blue-700">Employee: employee@dayflow.com / employee123</p>
+              </div>
 
               {/* Sign Up Link */}
               <div className="text-center mt-4">
