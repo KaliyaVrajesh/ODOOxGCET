@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Search, Plus, ChevronRight, Plane, LogOut, User } from 'lucide-react';
 import MyProfile from './MyProfile';
 import TimeOff from './TimeOff';
+import AttendancePage from './AttendancePage';
 
 type EmployeeStatus = 'present' | 'on-leave' | 'absent';
 
@@ -30,7 +31,7 @@ export default function EmployeesDashboard() {
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentView, setCurrentView] = useState<'dashboard' | 'profile' | 'timeoff'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'profile' | 'timeoff' | 'attendance'>('dashboard');
 
   // Show My Profile view
   if (currentView === 'profile') {
@@ -39,7 +40,21 @@ export default function EmployeesDashboard() {
 
   // Show Time Off view
   if (currentView === 'timeoff') {
-    return <TimeOff />;
+    return <TimeOff onBack={() => {
+      setCurrentView('dashboard');
+      setActiveTab('employees');
+    }} />;
+  }
+
+  // Show Attendance view
+  if (currentView === 'attendance') {
+    return <AttendancePage 
+      userRole="admin" 
+      onBack={() => {
+        setCurrentView('dashboard');
+        setActiveTab('employees');
+      }} 
+    />;
   }
 
   const handleCheckIn = () => {
@@ -78,7 +93,7 @@ export default function EmployeesDashboard() {
     }
   };
 
-  const filteredEmployees = mockEmployees.filter(emp =>
+  const filteredEmployees = mockEmployees.filter((emp: Employee) =>
     emp.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -109,7 +124,10 @@ export default function EmployeesDashboard() {
                 Employees
               </button>
               <button
-                onClick={() => setActiveTab('attendance')}
+                onClick={() => {
+                  setActiveTab('attendance');
+                  setCurrentView('attendance');
+                }}
                 className={`px-6 py-2 rounded-md transition-all text-sm ${
                   activeTab === 'attendance'
                     ? 'bg-white text-gray-900 shadow-sm'
